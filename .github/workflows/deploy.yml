@@ -1,0 +1,31 @@
+name: PyPi Release
+
+on:
+    push:
+    pull_request:
+
+# based on https://github.com/pypa/gh-action-pypi-publish
+jobs:
+  build:
+    if: startsWith(github.event.ref, 'refs/tags') || github.event_name == 'release'
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/mailsort
+    permissions:
+      id-token: write
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+    - name: Convert dependencies
+      run: |
+        sed -i 's/==/>=/g' pyproject.toml; cat pyproject.toml
+        git update-index --assume-unchanged pyproject.toml src/mailsort/_version.py
+    - name: Install Hatch
+      run: pip install hatchling hatch-vcs
+    - name: Build
+      run: hatchling build -t sdist -t wheel
+    - name: Publish distribution 📦 to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1

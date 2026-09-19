@@ -31,7 +31,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/jan-janssen/gmailsorter"
+Homepage = "https://github.com/jan-janssen/mailsort"
 
 [project.scripts]
 mailsort = "mailsort.__main__:command_line_parser"
@@ -88,7 +88,6 @@ packages = [
 [tool.hatch.version]
 source = "vcs"
 path = "src/mailsort/_version.py"
-raw-options = { root = "../..", tag_regex = "^mailsort-v(?P<version>.*)$", git_describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "mailsort-v*"] }
 
 [tool.coverage.run]
 source = ["mailsort"]
