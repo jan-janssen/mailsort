@@ -60,6 +60,10 @@ class TrainingAndStatusIntegrationTest(TestCase):
         db_email = get_email_database(engine=engine, session=session)
         db_email.store_dataframe(df=_sample_emails_df(), user_id=1)
         session.close()
+        # session.close() alone leaves pooled DBAPI connections open, which on Windows
+        # keeps the sqlite file locked - both for the functions under test and for the
+        # os.remove() cleanup above.
+        engine.dispose()
 
     def test_train_then_status_reports_consistent_state(self):
         model_count = train_machine_learning_models(

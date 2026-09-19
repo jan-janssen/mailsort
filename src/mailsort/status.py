@@ -61,3 +61,7 @@ def get_database_status(connection_str, db_user_id=1):
         )
     finally:
         session.close()
+        # Without this, pooled DBAPI connections stay open after session.close() alone,
+        # which on Windows keeps the sqlite file locked for anyone trying to open or
+        # delete it right after this function returns.
+        engine.dispose()

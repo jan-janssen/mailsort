@@ -81,3 +81,7 @@ def train_machine_learning_models(
         return len(model_dict)
     finally:
         session.close()
+        # Without this, pooled DBAPI connections stay open after session.close() alone,
+        # which on Windows keeps the sqlite file locked for anyone trying to open or
+        # delete it right after this function returns.
+        engine.dispose()
