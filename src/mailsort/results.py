@@ -52,28 +52,47 @@ class TrainResult:
 @dataclass(frozen=True)
 class Prediction:
     """
-    A single machine learning recommendation for one message.
+    A single machine learning classification result for one message - a first-class,
+    side-effect-free representation of inference, deliberately kept separate from mailbox
+    mutation.
 
-    See AbstractMailBox.get_label_recommendations() / mailsort.MailSorter.predict(). Producing a
-    Prediction never moves, deletes or otherwise modifies anything on the mail server - see
-    SortResult for the outcome of actually acting on recommendations like this one.
+    See AbstractMailBox.get_label_recommendations() / mailsort.MailSorter.predict(), which
+    produce these; producing a Prediction never moves, deletes or otherwise modifies anything on
+    the mail server. Moving messages (AbstractMailBox.filter_messages_from_server() /
+    mailsort.MailSorter.sort()) consumes the `accepted` Predictions from that same inference step
+    rather than scoring messages again, so a Prediction is authoritative for what sort() would do
+    given the same recommendation_ratio - see SortResult for the outcome of actually acting on
+    predictions like this one.
+
+    Every field is a plain, JSON-serializable value (str/float/bool, never a scikit-learn object),
+    so a Prediction can be logged, displayed or sent over the wire as-is - by the CLI, a caller
+    such as gmailsorter, a future web interface, or an audit trail.
 
     Attributes:
         message_id (str): backend-specific id that uniquely identifies the message
-        subject (str/None): the message subject, if available
-        recommended_label (str/None): the label the model scores highest for this message, or
+        source_folder (str): folder the message was fetched and scored from
+        recommended_folder (str/None): the folder the model scores highest for this message, or
             None if no machine learning model has been trained yet
-        score (float): the model's score for `recommended_label`
-        threshold_reached (bool): whether `score` clears the recommendation_ratio used to
-            produce this prediction, i.e. whether mailsort.MailSorter.sort() would move this
-            message for real, given the same recommendation_ratio
+        score (float): the model's score for `recommended_folder` (0.0 when `recommended_folder`
+            is None)
+        threshold (float): the recommendation_ratio this prediction was scored against - carried
+            alongside `score` so a Prediction is self-contained: a caller does not need to
+            remember which recommendation_ratio produced it to know why `accepted` is what it is
+        accepted (bool): whether `score` strictly clears `threshold`, i.e. whether
+            filter_messages_from_server()/MailSorter.sort() would move this message for real,
+            given the same recommendation_ratio - an abstained prediction (accepted=False) is
+            never acted on
+        subject (str/None): the message subject, if available - display metadata for humans
+            (CLI/logging), not itself part of the classification
     """
 
     message_id: str
-    subject: str | None
-    recommended_label: str | None
+    source_folder: str
+    recommended_folder: str | None
     score: float
-    threshold_reached: bool
+    threshold: float
+    accepted: bool
+    subject: str | None = None
 
 
 @dataclass(frozen=True)

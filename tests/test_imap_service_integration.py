@@ -159,10 +159,10 @@ class TestImapServiceIntegration(unittest.TestCase):
 
             self.assertEqual(
                 [
-                    entry
-                    for entry in recommendations
-                    if entry["subject"] == "Dry run test message"
-                ][0]["message_id"].split("\x1f", 1)[0],
+                    prediction
+                    for prediction in recommendations
+                    if prediction.subject == "Dry run test message"
+                ][0].message_id.split("\x1f", 1)[0],
                 "INBOX",
             )
 

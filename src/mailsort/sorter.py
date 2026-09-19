@@ -137,22 +137,19 @@ class MailSorter:
 
         Args:
             folder: mail folder to fetch and score messages from
-            recommendation_ratio: certainty a score must clear for `threshold_reached` to be
-                True on the matching Prediction - the same cutoff sort() uses to decide whether
-                to actually move a message (0<r<1)
+            recommendation_ratio: certainty a score must clear for `accepted` to be True on the
+                matching Prediction - the same cutoff sort() uses to decide whether to actually
+                move a message (0<r<1)
             label_prefix: prefix used to recognise label columns during feature encoding
 
         Returns:
             list[Prediction]: one entry per message currently in `folder`
         """
-        return [
-            Prediction(**entry)
-            for entry in self._mailbox.get_label_recommendations(
-                label=folder,
-                recommendation_ratio=recommendation_ratio,
-                label_prefix=label_prefix,
-            )
-        ]
+        return self._mailbox.get_label_recommendations(
+            label=folder,
+            recommendation_ratio=recommendation_ratio,
+            label_prefix=label_prefix,
+        )
 
     def sort(
         self,

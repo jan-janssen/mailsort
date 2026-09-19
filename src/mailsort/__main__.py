@@ -23,42 +23,43 @@ _EXIT_CONFIG_ERROR = 2
 _TABLE_COLUMN_WIDTHS = {
     "message_id": 36,
     "subject": 40,
-    "recommended_label": 20,
+    "recommended_folder": 20,
 }
 
 
-def _format_recommendations_table(recommendations):
+def _format_recommendations_table(predictions):
     """
-    Render the list of dicts returned by Imap.get_label_recommendations() as a plain text
+    Render the list[Prediction] returned by Imap.get_label_recommendations() as a plain text
     table for the command line - one row per message, no messages are moved to build this.
 
     Args:
-        recommendations (list): return value of AbstractMailBox.get_label_recommendations()
+        predictions (list[mailsort.results.Prediction]): return value of
+            AbstractMailBox.get_label_recommendations()
 
     Returns:
         str: human-readable table, or a placeholder message if there are no messages
     """
-    if not recommendations:
+    if not predictions:
         return "No messages found in this folder."
     widths = _TABLE_COLUMN_WIDTHS
     header = (
         f"{'MESSAGE ID':<{widths['message_id']}} "
         f"{'SUBJECT':<{widths['subject']}} "
-        f"{'RECOMMENDED LABEL':<{widths['recommended_label']}} "
-        f"{'SCORE':>6} {'REACHED':>8}"
+        f"{'RECOMMENDED FOLDER':<{widths['recommended_folder']}} "
+        f"{'SCORE':>6} {'ACCEPTED':>8}"
     )
     lines = [header, "-" * len(header)]
-    for entry in recommendations:
-        message_id = str(entry["message_id"])[: widths["message_id"]]
-        subject = str(entry["subject"] or "")[: widths["subject"]]
-        recommended_label = str(entry["recommended_label"] or "-")[
-            : widths["recommended_label"]
+    for prediction in predictions:
+        message_id = str(prediction.message_id)[: widths["message_id"]]
+        subject = str(prediction.subject or "")[: widths["subject"]]
+        recommended_folder = str(prediction.recommended_folder or "-")[
+            : widths["recommended_folder"]
         ]
         lines.append(
             f"{message_id:<{widths['message_id']}} "
             f"{subject:<{widths['subject']}} "
-            f"{recommended_label:<{widths['recommended_label']}} "
-            f"{entry['score']:>6.2f} {str(entry['threshold_reached']):>8}"
+            f"{recommended_folder:<{widths['recommended_folder']}} "
+            f"{prediction.score:>6.2f} {str(prediction.accepted):>8}"
         )
     return "\n".join(lines)
 
@@ -385,14 +386,14 @@ def _run_sort(args, database, db_user_id):
         return _report_missing_connection_fields("sort", missing)
     imap = _connect(args, database, db_user_id)
     try:
-        imap.filter_messages_from_server(
+        result = imap.filter_messages_from_server(
             label=args.folder,
             recommendation_ratio=args.recommendation_ratio,
             label_prefix=args.label_prefix,
         )
     finally:
         imap.close()
-    print(f"Sorted folder {args.folder!r}.")
+    print(f"Sorted folder {args.folder!r}: moved {result.moved_count} message(s).")
     return _EXIT_OK
 
 

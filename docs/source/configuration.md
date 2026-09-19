@@ -107,15 +107,15 @@ mailsort predict MailSortInbox --host imap.example.com --username user@example.c
 This downloads and scores the messages in `MailSortInbox` exactly as `mailsort sort` would, and prints the result
 as a table - but it never moves, deletes, archives or otherwise modifies anything on the server:
 ```
-MESSAGE ID                          SUBJECT                                  RECOMMENDED LABEL     SCORE  REACHED
---------------------------------------------------------------------------------------------------------------
-MailSortInbox\x1f101                Your invoice for March                  Receipts                1.00     True
-MailSortInbox\x1f102                Let's catch up next week                -                       0.00    False
+MESSAGE ID                           SUBJECT                                  RECOMMENDED FOLDER    SCORE ACCEPTED
+------------------------------------------------------------------------------------------------------------------
+MailSortInbox\x1f101                  Your invoice for March                   Receipts               1.00     True
+MailSortInbox\x1f102                  Let's catch up next week                 -                      0.00    False
 ```
 Each row shows one message currently in the folder: its id, its subject, the folder the model would move it to,
 the model's score for that folder, and whether that score clears `--recommendation-ratio` (90% by default) - i.e.
 whether running `mailsort sort` on the same folder would actually move that message. A `-` in the recommended
-label column means either no folder scored high enough, or no machine learning model has been trained yet (run
+folder column means either no folder scored high enough, or no machine learning model has been trained yet (run
 `mailsort train` first).
 
 ## Python interface

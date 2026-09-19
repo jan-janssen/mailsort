@@ -8,6 +8,7 @@ from mailsort.__main__ import (
     _format_status_table,
     command_line_parser,
 )
+from mailsort.results import Prediction, SortResult
 from mailsort.status import DatabaseStatus
 
 
@@ -148,13 +149,15 @@ class PredictCommandTest(TestCase):
     def test_predict_prints_recommendations_and_never_moves_anything(self, imap_cls):
         imap_instance = imap_cls.return_value
         imap_instance.get_label_recommendations.return_value = [
-            {
-                "message_id": "MailSortInbox\x1f1",
-                "subject": "Hello",
-                "recommended_label": "Sorted",
-                "score": 1.0,
-                "threshold_reached": True,
-            }
+            Prediction(
+                message_id="MailSortInbox\x1f1",
+                source_folder="MailSortInbox",
+                recommended_folder="Sorted",
+                score=1.0,
+                threshold=0.9,
+                accepted=True,
+                subject="Hello",
+            )
         ]
 
         with patch("builtins.print") as print_mock:
@@ -223,25 +226,31 @@ class SortCommandTest(TestCase):
     @patch("mailsort.__main__.Imap")
     def test_sort_moves_messages_via_filter(self, imap_cls):
         imap_instance = imap_cls.return_value
-
-        exit_code = command_line_parser(
-            [
-                "sort",
-                "MailSortInbox",
-                "--host",
-                "localhost",
-                "--username",
-                "user",
-                "--password",
-                "secret",
-            ]
+        imap_instance.filter_messages_from_server.return_value = SortResult(
+            moved_lst=[("MailSortInbox\x1f1", "Sorted")]
         )
+
+        with patch("builtins.print") as print_mock:
+            exit_code = command_line_parser(
+                [
+                    "sort",
+                    "MailSortInbox",
+                    "--host",
+                    "localhost",
+                    "--username",
+                    "user",
+                    "--password",
+                    "secret",
+                ]
+            )
 
         self.assertEqual(exit_code, _EXIT_OK)
         imap_instance.filter_messages_from_server.assert_called_once_with(
             label="MailSortInbox", recommendation_ratio=0.9, label_prefix="labels_"
         )
         imap_instance.close.assert_called_once()
+        printed = "\n".join(str(call.args[0]) for call in print_mock.call_args_list)
+        self.assertIn("moved 1 message(s)", printed)
 
     @patch("mailsort.__main__.Imap")
     def test_sort_missing_connection_args_returns_config_error(self, imap_cls):

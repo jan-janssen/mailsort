@@ -55,10 +55,10 @@ password manager.
 - `predict FOLDER` reports what the trained model would recommend for the messages currently in
   `FOLDER`, without moving, deleting or otherwise modifying anything on the server:
   ```
-  MESSAGE ID                          SUBJECT                                  RECOMMENDED LABEL     SCORE  REACHED
-  --------------------------------------------------------------------------------------------------------------
-  some_label\x1f101                   Your invoice for March                  Receipts                1.00     True
-  some_label\x1f102                   Let's catch up next week                -                       0.00    False
+  MESSAGE ID                           SUBJECT                                  RECOMMENDED FOLDER    SCORE ACCEPTED
+  ------------------------------------------------------------------------------------------------------------------
+  some_label\x1f101                     Your invoice for March                   Receipts               1.00     True
+  some_label\x1f102                     Let's catch up next week                 -                      0.00    False
   ```
 - `sort FOLDER` does the same scoring as `predict`, but actually moves the messages whose score
   clears the configured threshold (`--recommendation-ratio`, 90% by default).
@@ -118,27 +118,38 @@ so it works unmodified with any current or future mailbox backend - including a 
 built by [gmailsorter](https://github.com/jan-janssen/gmailsorter).
 
 ### Dry run / recommendation mode
-`predict()` computes the exact same machine learning recommendations `sort()` would act on, but
-only returns them - it never moves, deletes, archives or otherwise modifies anything on the
-server:
+`predict()` computes the exact same machine learning predictions `sort()` would act on, but only
+returns them - it never moves, deletes, archives or otherwise modifies anything on the server.
+Each message gets a `Prediction`, a plain, JSON-serializable dataclass - a first-class,
+side-effect-free representation of one classification result, independent of any mailbox change:
 ```python
 for prediction in sorter.predict("some_label"):
     print(
         prediction.message_id,
-        prediction.subject,
-        prediction.recommended_label,
+        prediction.source_folder,
+        prediction.recommended_folder,
         prediction.score,
-        prediction.threshold_reached,
+        prediction.threshold,
+        prediction.accepted,
+        prediction.subject,
     )
 ```
-Each `Prediction` has:
+`Prediction` has:
 - `message_id` - id that uniquely identifies the message
-- `subject` - the message subject, if available
-- `recommended_label` - the folder the model scores highest for this message, or `None` if no
+- `source_folder` - the folder the message was fetched and scored from
+- `recommended_folder` - the folder the model scores highest for this message, or `None` if no
   model has been trained yet
-- `score` - the model's score for `recommended_label`
-- `threshold_reached` - whether `score` clears `recommendation_ratio`, i.e. whether `sort()`
-  would move this message for real
+- `score` - the model's score for `recommended_folder`
+- `threshold` - the `recommendation_ratio` this prediction was scored against
+- `accepted` - whether `score` clears `threshold`, i.e. whether `sort()` would move this message
+  for real given the same `recommendation_ratio` - an abstained prediction (`accepted=False`) is
+  never acted on
+- `subject` - the message subject, if available; display metadata, not itself part of the
+  classification
+
+Because every field is a plain value, `Prediction` is equally useful to the CLI's `predict` table,
+to a caller such as `gmailsorter`, to a future web interface, or to an audit log - store or ship a
+`Prediction` as-is, no scikit-learn objects involved.
 
 ### Low-level interface
 `MailSorter` is a thin wrapper around methods `Imap` (an `AbstractMailBox`) already exposes
@@ -161,14 +172,18 @@ imap.filter_messages_from_server(label="some_label", recommendation_ratio=0.9)
 ```
 `update_database()`, `fit_machine_learning_model_to_database()` and `filter_messages_from_server()`
 return the same `SyncResult`/`TrainResult`/`SortResult` objects as their `MailSorter` counterparts.
-`get_label_recommendations()`, the equivalent of `predict()`, returns a `list[dict]` rather than a
-`list[Prediction]`, unchanged from earlier versions:
+`get_label_recommendations()` is `predict()`'s implementation - it already returns `list[Prediction]`,
+so `MailSorter.predict()` is a pure passthrough to it:
 ```python
-for recommendation in imap.get_label_recommendations(
+for prediction in imap.get_label_recommendations(
     label="some_label", recommendation_ratio=0.9
 ):
-    print(recommendation["message_id"], recommendation["recommended_label"])
+    print(prediction.message_id, prediction.recommended_folder)
 ```
+`filter_messages_from_server()` scores messages through this exact same call, then moves only the
+accepted predictions - inference and mailbox mutation are separated in code, not just by
+convention, so it is not possible to move a message without it first having gone through
+`get_label_recommendations()`.
 
 ### Train and inspect the local database without a mail connection
 `train_machine_learning_models()` and `get_database_status()` are the functions behind the

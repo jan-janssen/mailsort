@@ -2,6 +2,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from mailsort.__main__ import _format_recommendations_table, command_line_parser
+from mailsort.results import Prediction
 
 
 class ImapCliTest(TestCase):
@@ -77,13 +78,15 @@ class ImapCliTest(TestCase):
     def test_dry_run_prints_recommendations_and_never_filters(self, imap_cls):
         imap_instance = imap_cls.return_value
         imap_instance.get_label_recommendations.return_value = [
-            {
-                "message_id": "MailSortInbox\x1f1",
-                "subject": "Hello",
-                "recommended_label": "Sorted",
-                "score": 1.0,
-                "threshold_reached": True,
-            }
+            Prediction(
+                message_id="MailSortInbox\x1f1",
+                source_folder="MailSortInbox",
+                recommended_folder="Sorted",
+                score=1.0,
+                threshold=0.9,
+                accepted=True,
+                subject="Hello",
+            )
         ]
         with (
             patch(
@@ -166,20 +169,24 @@ class FormatRecommendationsTableTest(TestCase):
     def test_includes_every_message_and_field(self):
         table = _format_recommendations_table(
             [
-                {
-                    "message_id": "INBOX\x1f1",
-                    "subject": "Hello",
-                    "recommended_label": "Sorted",
-                    "score": 1.0,
-                    "threshold_reached": True,
-                },
-                {
-                    "message_id": "INBOX\x1f2",
-                    "subject": None,
-                    "recommended_label": None,
-                    "score": 0.0,
-                    "threshold_reached": False,
-                },
+                Prediction(
+                    message_id="INBOX\x1f1",
+                    source_folder="INBOX",
+                    recommended_folder="Sorted",
+                    score=1.0,
+                    threshold=0.9,
+                    accepted=True,
+                    subject="Hello",
+                ),
+                Prediction(
+                    message_id="INBOX\x1f2",
+                    source_folder="INBOX",
+                    recommended_folder=None,
+                    score=0.0,
+                    threshold=0.9,
+                    accepted=False,
+                    subject=None,
+                ),
             ]
         )
 

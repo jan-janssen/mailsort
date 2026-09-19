@@ -342,6 +342,30 @@ class TestMlModel(unittest.TestCase):
         self.assertFalse(id1_entry["threshold_reached"])
         self.assertGreater(id1_entry["score"], 0.9)
 
+    def test_score_messages_with_machine_learning_models_tie_at_threshold_is_not_reached(
+        self,
+    ):
+        # Boundary/tie case: recommendation_ratio is a strict cutoff (">"), so a score exactly
+        # equal to it must not count as reached - otherwise a message could be moved "by luck"
+        # on a coin-flip-confidence score.
+        exact_score = next(
+            entry
+            for entry in score_messages_with_machine_learning_models(
+                self.df_features, self.models, recommendation_ratio=1.0
+            )
+            if entry["email_id"] == "id1"
+        )["score"]
+
+        scores_at_threshold = score_messages_with_machine_learning_models(
+            self.df_features, self.models, recommendation_ratio=exact_score
+        )
+
+        id1_entry = next(
+            entry for entry in scores_at_threshold if entry["email_id"] == "id1"
+        )
+        self.assertEqual(id1_entry["score"], exact_score)
+        self.assertFalse(id1_entry["threshold_reached"])
+
     def test_score_messages_with_machine_learning_models_without_trained_models(self):
         scores = score_messages_with_machine_learning_models(self.df_features, {})
 
