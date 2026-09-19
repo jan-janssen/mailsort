@@ -1,4 +1,9 @@
-import tomllib
+import re
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover
+    import tomli as tomllib
 
 
 def get_exact_pin_versions(pyproject_content):
@@ -10,6 +15,30 @@ def get_exact_pin_versions(pyproject_content):
                 name, version = dep.split("==", 1)
                 versions[name] = version
     return versions
+
+
+def extract_lower_version(constraint):
+    if not constraint:
+        return None
+    for part in constraint.split(","):
+        normalized = part.strip().replace(" ", "")
+        if normalized.startswith(">="):
+            return normalized[2:]
+        if normalized.startswith("=="):
+            return normalized[2:]
+        if normalized.startswith("="):
+            return normalized[1:]
+        if normalized.startswith(">"):
+            return normalized[1:]
+    return None
+
+
+def parse_conda_dependency(dep):
+    match = re.match(r"^([A-Za-z0-9_.-]+)\s*(.*)$", dep.strip())
+    if not match:
+        return None, None
+    name, constraint = match.groups()
+    return name, extract_lower_version(constraint)
 
 
 def get_env_versions(env_content):
@@ -27,10 +56,9 @@ def get_env_versions(env_content):
         if not line.startswith("-"):
             continue
         dep = line.lstrip("-").strip()
-        if "=" in dep:
-            name, version = dep.split("=", 1)
-            if name and version:
-                versions[name.strip()] = version.strip()
+        name, version = parse_conda_dependency(dep=dep)
+        if name and version:
+            versions[name] = version
     return versions
 
 
@@ -50,12 +78,34 @@ def update_dependencies(pyproject_content, version_low_dict, version_high_dict):
         )
         raise ValueError(msg)
 
-    updated_content = pyproject_content
+    replacement_dict = {}
     for dep, high_version in version_high_dict.items():
         old = f"{dep}=={high_version}"
-        new = to_release_constraint(dep, high_version, version_low_dict[dep])
-        updated_content = updated_content.replace(old, new)
-    return updated_content
+        replacement_dict[old] = to_release_constraint(
+            dep, high_version, version_low_dict[dep]
+        )
+
+    updated_lines = []
+    current_section = None
+    in_target_list = False
+    for line in pyproject_content.splitlines(keepends=True):
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            current_section = stripped.strip("[]")
+            in_target_list = False
+        if current_section in ["build-system", "project"] and (
+            "requires = [" in line or "dependencies = [" in line
+        ):
+            in_target_list = True
+        if in_target_list:
+            for old, new in replacement_dict.items():
+                line = line.replace(f'"{old}"', f'"{new}"').replace(
+                    f"'{old}'", f"'{new}'"
+                )
+            if "]" in line:
+                in_target_list = False
+        updated_lines.append(line)
+    return "".join(updated_lines)
 
 
 def update_pyproject_for_release(pyproject_content, env_content):
