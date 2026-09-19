@@ -76,3 +76,23 @@ jobs:
       run: pip install .
     - name: Run IMAP integration test
       run: python -m unittest tests.test_imap_service_integration -v
+
+  unittest-old:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Conda config
+      shell: bash -l {0}
+      run: echo -e "channels:\n  - conda-forge\n" > .condarc
+    - uses: conda-incubator/setup-miniconda@v3
+      with:
+        python-version: "3.10"
+        miniforge-version: latest
+        condarc-file: .condarc
+        environment-file: .ci_support/environment-old.yml
+    - name: Test lower-bound dependencies
+      shell: bash -l {0}
+      timeout-minutes: 30
+      run: |
+        pip install --no-deps .
+        coverage run --omit src/mailsort/_version.py -m unittest discover tests
