@@ -140,6 +140,52 @@ class TestImapServiceIntegration(unittest.TestCase):
         self.assertEqual(len(moved_row), 1)
         self.assertTrue(moved_row.iloc[0]["id"].startswith("MailSortInbox\x1f"))
 
+    def test_get_label_recommendations_does_not_move_messages(self):
+        message_id = self._send_message(
+            subject="Dry run test message",
+            body="Body from mailsort IMAP dry-run test.",
+        )
+        self._wait_for_message_in_inbox(message_id)
+
+        with Imap(
+            host=self.imap_host,
+            port=self.imap_port,
+            username=self.username,
+            password=self.password,
+            connection_str="sqlite:///:memory:",
+            use_ssl=False,
+        ) as imap:
+            recommendations = imap.get_label_recommendations(label="INBOX")
+
+            self.assertEqual(
+                [
+                    entry
+                    for entry in recommendations
+                    if entry["subject"] == "Dry run test message"
+                ][0]["message_id"].split("\x1f", 1)[0],
+                "INBOX",
+            )
+
+            # The dry run above must not have moved, deleted or otherwise modified the
+            # message on the server - confirmed directly against the IMAP server, without
+            # going through mailsort's own database, which a bug in the dry-run code path
+            # could otherwise mask.
+            with IMAP4(self.imap_host, self.imap_port, timeout=10) as client:
+                client.login(self.username, self.password)
+                client.select("INBOX")
+                status, data = client.search(
+                    None, "HEADER", "Message-ID", f'"{message_id}"'
+                )
+                self.assertEqual(status, "OK")
+                self.assertEqual(len(data[0].split()), 1)
+
+                client.select("MailSortInbox")
+                status, data = client.search(
+                    None, "HEADER", "Message-ID", f'"{message_id}"'
+                )
+                self.assertEqual(status, "OK")
+                self.assertEqual(data[0].split(), [])
+
 
 class TestImapIntegrationRequiredGate(unittest.TestCase):
     """Covers the env-var gate itself, which needs no IMAP server."""

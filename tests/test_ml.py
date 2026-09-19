@@ -21,6 +21,7 @@ from mailsort.ml.model import (
     train_random_forest,
     fit_machine_learning_models,
     get_predictions_from_machine_learning_models,
+    score_messages_with_machine_learning_models,
 )
 from mailsort.ml.database import (
     MachineLearningDatabase,
@@ -297,6 +298,50 @@ class TestMlModel(unittest.TestCase):
             self.df_features, self.models, recommendation_ratio=1.0
         )
         self.assertIsNone(predictions["id1"])
+
+    def test_score_messages_with_machine_learning_models_matches_predictions(self):
+        predictions = get_predictions_from_machine_learning_models(
+            self.df_features, self.models
+        )
+        scores = score_messages_with_machine_learning_models(
+            self.df_features, self.models
+        )
+
+        self.assertEqual([entry["email_id"] for entry in scores], ["id1", "id2", "id3"])
+        for entry in scores:
+            self.assertEqual(entry["recommended_label"], predictions[entry["email_id"]])
+            self.assertEqual(entry["threshold_reached"], entry["score"] > 0.9)
+            self.assertEqual(
+                entry["threshold_reached"], predictions[entry["email_id"]] is not None
+            )
+
+    def test_score_messages_with_machine_learning_models_exposes_score_below_threshold(
+        self,
+    ):
+        scores = score_messages_with_machine_learning_models(
+            self.df_features, self.models, recommendation_ratio=1.0
+        )
+
+        id1_entry = next(entry for entry in scores if entry["email_id"] == "id1")
+        self.assertEqual(id1_entry["recommended_label"], "Label_1")
+        self.assertFalse(id1_entry["threshold_reached"])
+        self.assertGreater(id1_entry["score"], 0.9)
+
+    def test_score_messages_with_machine_learning_models_without_trained_models(self):
+        scores = score_messages_with_machine_learning_models(self.df_features, {})
+
+        self.assertEqual(
+            scores,
+            [
+                {
+                    "email_id": email_id,
+                    "recommended_label": None,
+                    "score": 0.0,
+                    "threshold_reached": False,
+                }
+                for email_id in ["id1", "id2", "id3"]
+            ],
+        )
 
     def test_spam_example_csv_pipeline(self):
         csv_data = """id,from,to,cc,date,threads,labels,subject,content

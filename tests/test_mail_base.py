@@ -132,3 +132,141 @@ class AbstractMailBoxTest(TestCase):
         mailbox.fit_machine_learning_model_to_database(n_estimators=5, max_features=2)
 
         db_ml.store_models.assert_called_once()
+
+    @patch("mailsort.base.mail.get_predictions_from_machine_learning_models")
+    @patch("mailsort.base.mail.encode_df_for_machine_learning")
+    def test_filter_messages_from_server_moves_recommended_messages(
+        self, encode_mock, predict_mock
+    ):
+        db_ml = MagicMock()
+        db_ml.load_models.return_value = ({"Sorted": MagicMock()}, ["f1"])
+        mailbox = _StubMailBox(database_ml=db_ml)
+        mailbox.search_result = ["id1"]
+        mailbox.message_detail_dict = {
+            "id1": {
+                "id": "id1",
+                "threads": "t1",
+                "labels": ["Inbox"],
+                "to": [],
+                "from": None,
+                "cc": [],
+                "subject": "Hello",
+                "content": "c1",
+                "date": None,
+            }
+        }
+        encode_mock.return_value = pd.DataFrame({"email_id": ["id1"], "f1": [1]})
+        predict_mock.return_value = {"id1": "Sorted"}
+
+        mailbox.filter_messages_from_server(label="Inbox")
+
+        self.assertEqual(mailbox.modify_calls, [("id1", ["Inbox"], ["Sorted"])])
+
+    def test_get_label_recommendations_returns_empty_list_for_empty_folder(self):
+        db_ml = MagicMock()
+        mailbox = _StubMailBox(database_ml=db_ml)
+        mailbox.search_result = []
+
+        recommendations = mailbox.get_label_recommendations(label="Inbox")
+
+        self.assertEqual(recommendations, [])
+        db_ml.load_models.assert_not_called()
+        self.assertEqual(mailbox.modify_calls, [])
+
+    def test_get_label_recommendations_without_trained_models_never_moves_anything(
+        self,
+    ):
+        db_ml = MagicMock()
+        db_ml.load_models.return_value = ({}, [])
+        mailbox = _StubMailBox(database_ml=db_ml)
+        mailbox.search_result = ["id1", "id2"]
+        mailbox.message_detail_dict = {
+            "id1": {
+                "id": "id1",
+                "threads": "t1",
+                "labels": ["Inbox"],
+                "to": [],
+                "from": None,
+                "cc": [],
+                "subject": "Hello",
+                "content": "c1",
+                "date": None,
+            },
+            "id2": {
+                "id": "id2",
+                "threads": "t2",
+                "labels": ["Inbox"],
+                "to": [],
+                "from": None,
+                "cc": [],
+                "subject": "World",
+                "content": "c2",
+                "date": None,
+            },
+        }
+
+        recommendations = mailbox.get_label_recommendations(label="Inbox")
+
+        self.assertEqual(
+            [(entry["message_id"], entry["subject"]) for entry in recommendations],
+            [("id1", "Hello"), ("id2", "World")],
+        )
+        self.assertTrue(
+            all(entry["recommended_label"] is None for entry in recommendations)
+        )
+        self.assertTrue(
+            all(not entry["threshold_reached"] for entry in recommendations)
+        )
+        self.assertEqual(mailbox.modify_calls, [])
+
+    @patch("mailsort.base.mail.score_messages_with_machine_learning_models")
+    @patch("mailsort.base.mail.encode_df_for_machine_learning")
+    def test_get_label_recommendations_wires_scores_and_never_moves(
+        self, encode_mock, score_mock
+    ):
+        db_ml = MagicMock()
+        db_ml.load_models.return_value = ({"Sorted": MagicMock()}, ["f1"])
+        mailbox = _StubMailBox(database_ml=db_ml)
+        mailbox.search_result = ["id1"]
+        mailbox.message_detail_dict = {
+            "id1": {
+                "id": "id1",
+                "threads": "t1",
+                "labels": ["Inbox"],
+                "to": [],
+                "from": None,
+                "cc": [],
+                "subject": "Hello",
+                "content": "c1",
+                "date": None,
+            }
+        }
+        encode_mock.return_value = pd.DataFrame({"email_id": ["id1"], "f1": [1]})
+        score_mock.return_value = [
+            {
+                "email_id": "id1",
+                "recommended_label": "Sorted",
+                "score": 0.95,
+                "threshold_reached": True,
+            }
+        ]
+
+        recommendations = mailbox.get_label_recommendations(
+            label="Inbox", recommendation_ratio=0.9
+        )
+
+        self.assertEqual(
+            recommendations,
+            [
+                {
+                    "message_id": "id1",
+                    "subject": "Hello",
+                    "recommended_label": "Sorted",
+                    "score": 0.95,
+                    "threshold_reached": True,
+                }
+            ],
+        )
+        score_mock.assert_called_once()
+        self.assertEqual(score_mock.call_args.kwargs["recommendation_ratio"], 0.9)
+        self.assertEqual(mailbox.modify_calls, [])

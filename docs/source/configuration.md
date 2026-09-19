@@ -31,6 +31,8 @@ The available command line options are:
   uses a simple SQLite database, but most SQL databases supported by [SQLAlchemy](https://www.sqlalchemy.org/) work.
 - `-u/--update` update the local email database and retrain the machine learning model.
 - `-l/--label` email folder to be filtered with machine learning, e.g. `MailSortInbox`.
+- `-n/--dry-run` with `-l/--label`, print the recommendations for that folder instead of moving any
+  messages - see the section below.
 - `-i/--identification` user id of the database user, useful when sharing one database between multiple accounts -
   default: `1`.
 
@@ -40,6 +42,26 @@ end up in your shell history in plain text.
 
 `mailsort` does not include its own scheduler, so to sort emails automatically every few minutes, schedule the
 second command above with `cron` or a similar tool on your own machine.
+
+## Dry run / recommendation mode
+Before letting `mailsort` move emails automatically, or when you simply want to check how confident the model is
+about a folder without touching your mailbox, add `-n`/`--dry-run` to the sorting command:
+```
+mailsort --host imap.example.com --username user@example.com --password "..." -d sqlite:///email.db -l MailSortInbox --dry-run
+```
+This downloads and scores the messages in `MailSortInbox` exactly as the command without `--dry-run` would, and
+prints the result as a table - but it never moves, deletes, archives or otherwise modifies anything on the server:
+```
+MESSAGE ID                          SUBJECT                                  RECOMMENDED LABEL     SCORE  REACHED
+--------------------------------------------------------------------------------------------------------------
+MailSortInbox\x1f101                Your invoice for March                  Receipts                1.00     True
+MailSortInbox\x1f102                Let's catch up next week                -                       0.00    False
+```
+Each row shows one message currently in the folder: its id, its subject, the folder the model would move it to,
+the model's score for that folder, and whether that score clears `recommendation_ratio` (90% by default) - i.e.
+whether running the same command without `--dry-run` would actually move that message. A `-` in the recommended
+label column means either no folder scored high enough, or no machine learning model has been trained yet (run
+`-u` first).
 
 ## Python interface
 To integrate `mailsort` into your own scripts, or to build additional functionality on top of it (as
