@@ -41,7 +41,9 @@ class SyncCommandTest(TestCase):
             use_ssl=True,
             email_download_format="metadata",
         )
-        imap_instance.update_database.assert_called_once_with(quick=False, label_lst=None)
+        imap_instance.update_database.assert_called_once_with(
+            quick=False, label_lst=None
+        )
         imap_instance.close.assert_called_once()
 
     @patch("mailsort.__main__.Imap")
@@ -101,7 +103,9 @@ class TrainCommandTest(TestCase):
     def test_train_calls_reusable_api_without_mail_connection(self, train_mock):
         train_mock.return_value = 3
 
-        exit_code = command_line_parser(["train", "-d", "sqlite:///:memory:", "-i", "2"])
+        exit_code = command_line_parser(
+            ["train", "-d", "sqlite:///:memory:", "-i", "2"]
+        )
 
         self.assertEqual(exit_code, _EXIT_OK)
         train_mock.assert_called_once_with(
@@ -370,7 +374,9 @@ class IdentificationArgumentTest(TestCase):
             use_ssl=True,
             email_download_format="metadata",
         )
-        imap_instance.update_database.assert_called_once_with(quick=False, label_lst=None)
+        imap_instance.update_database.assert_called_once_with(
+            quick=False, label_lst=None
+        )
 
 
 if __name__ == "__main__":

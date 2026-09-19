@@ -99,7 +99,9 @@ class DatabaseInterface(DatabaseTemplate):
         Returns:
             int: number of matching emails
         """
-        query = self._session.query(EmailContent).filter(EmailContent.user_id == user_id)
+        query = self._session.query(EmailContent).filter(
+            EmailContent.user_id == user_id
+        )
         if not include_deleted:
             query = query.filter(EmailContent.email_deleted.is_(False))
         return query.count()

@@ -51,7 +51,9 @@ def train_machine_learning_models(
     try:
         db_email = get_email_database(engine=engine, session=session)
         db_ml = get_machine_learning_database(engine=engine, session=session)
-        df_all = db_email.get_all_emails(include_deleted=include_deleted, user_id=db_user_id)
+        df_all = db_email.get_all_emails(
+            include_deleted=include_deleted, user_id=db_user_id
+        )
         df_all_features, df_all_labels = encode_df_for_machine_learning(
             df=df_all, feature_lst=[], label_lst=[], return_labels=True
         )

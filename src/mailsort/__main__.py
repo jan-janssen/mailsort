@@ -274,7 +274,9 @@ Run `mailsort <command> --help` for the arguments of an individual command.
         "this without moving anything.",
     )
     sort_parser.add_argument(
-        "folder", metavar="FOLDER", help="IMAP folder to fetch, score and sort messages from."
+        "folder",
+        metavar="FOLDER",
+        help="IMAP folder to fetch, score and sort messages from.",
     )
     _add_connection_arguments(sort_parser, suppress_defaults=True)
     _add_database_argument(sort_parser, suppress_defaults=True)
