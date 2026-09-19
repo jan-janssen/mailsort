@@ -2,7 +2,7 @@ from unittest import TestCase
 from unittest.mock import create_autospec
 
 from mailsort.base.mail import AbstractMailBox
-from mailsort.results import Prediction, SortResult, SyncResult, TrainResult
+from mailsort.results import Prediction, ScoreType, SortResult, SyncResult, TrainResult
 from mailsort.sorter import MailSorter
 
 
@@ -67,9 +67,35 @@ class MailSorterTest(TestCase):
             bootstrap=True,
             include_deleted=True,
             max_workers=1,
+            calibrate=True,
+            min_samples_per_class_for_calibration=20,
+            max_calibration_cv_folds=5,
         )
         self.assertEqual(result.trained_label_lst, ["Inbox", "Receipts"])
         self.assertEqual(result.model_count, 2)
+
+    def test_train_forwards_calibration_arguments(self):
+        self.mailbox.fit_machine_learning_model_to_database.return_value = TrainResult(
+            []
+        )
+
+        self.sorter.train(
+            calibrate=False,
+            min_samples_per_class_for_calibration=5,
+            max_calibration_cv_folds=3,
+        )
+
+        self.mailbox.fit_machine_learning_model_to_database.assert_called_once_with(
+            n_estimators=100,
+            max_features=400,
+            random_state=42,
+            bootstrap=True,
+            include_deleted=False,
+            max_workers=None,
+            calibrate=False,
+            min_samples_per_class_for_calibration=5,
+            max_calibration_cv_folds=3,
+        )
 
     def test_predict_passes_through_the_predictions_from_the_mailbox(self):
         # get_label_recommendations() already returns list[Prediction] - predict() is a pure
@@ -83,6 +109,7 @@ class MailSorterTest(TestCase):
                 score=0.95,
                 threshold=0.8,
                 accepted=True,
+                score_type=ScoreType.CALIBRATED,
                 subject="Hello",
             ),
             Prediction(
@@ -92,6 +119,7 @@ class MailSorterTest(TestCase):
                 score=0.0,
                 threshold=0.8,
                 accepted=False,
+                score_type=ScoreType.RAW,
                 subject=None,
             ),
         ]

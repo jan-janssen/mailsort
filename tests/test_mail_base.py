@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 
 from mailsort.base.mail import AbstractMailBox
-from mailsort.results import Prediction, SortResult, SyncResult, TrainResult
+from mailsort.results import Prediction, ScoreType, SortResult, SyncResult, TrainResult
 
 
 class _StubMailBox(AbstractMailBox):
@@ -51,6 +51,7 @@ def _make_prediction(
     score=0.0,
     threshold=0.9,
     accepted=False,
+    score_type=ScoreType.RAW,
     subject=None,
 ):
     """Shorthand for building a Prediction fixture in tests that only care about a few fields."""
@@ -61,6 +62,7 @@ def _make_prediction(
         score=score,
         threshold=threshold,
         accepted=accepted,
+        score_type=score_type,
         subject=subject,
     )
 
@@ -242,6 +244,7 @@ class AbstractMailBoxTest(TestCase):
                 "recommended_label": "Sorted",
                 "score": 0.95,
                 "threshold_reached": True,
+                "calibrated": True,
             }
         ]
 
@@ -282,6 +285,7 @@ class AbstractMailBoxTest(TestCase):
                 "recommended_label": "Sorted",
                 "score": 0.4,
                 "threshold_reached": False,
+                "calibrated": False,
             }
         ]
 
@@ -385,6 +389,7 @@ class AbstractMailBoxTest(TestCase):
                     score=0.0,
                     threshold=0.9,
                     accepted=False,
+                    score_type=ScoreType.RAW,
                     subject="Hello",
                 ),
                 Prediction(
@@ -394,6 +399,7 @@ class AbstractMailBoxTest(TestCase):
                     score=0.0,
                     threshold=0.9,
                     accepted=False,
+                    score_type=ScoreType.RAW,
                     subject="World",
                 ),
             ],
@@ -429,6 +435,7 @@ class AbstractMailBoxTest(TestCase):
                 "recommended_label": "Sorted",
                 "score": 0.95,
                 "threshold_reached": True,
+                "calibrated": True,
             }
         ]
 
@@ -446,6 +453,7 @@ class AbstractMailBoxTest(TestCase):
                     score=0.95,
                     threshold=0.9,
                     accepted=True,
+                    score_type=ScoreType.CALIBRATED,
                     subject="Hello",
                 )
             ],
@@ -484,6 +492,7 @@ class AbstractMailBoxTest(TestCase):
                 "recommended_label": "Sorted",
                 "score": 0.5,
                 "threshold_reached": False,
+                "calibrated": False,
             }
         ]
 
@@ -495,6 +504,7 @@ class AbstractMailBoxTest(TestCase):
         self.assertEqual(prediction.score, 0.5)
         self.assertEqual(prediction.threshold, 0.9)
         self.assertFalse(prediction.accepted)
+        self.assertEqual(prediction.score_type, ScoreType.RAW)
 
     @patch("mailsort.base.mail.score_messages_with_machine_learning_models")
     @patch("mailsort.base.mail.encode_df_for_machine_learning")
@@ -529,6 +539,7 @@ class AbstractMailBoxTest(TestCase):
                 # score == recommendation_ratio - a real score_messages_with_machine_learning_models()
                 # call would compute this as False too, since the cutoff is a strict ">"
                 "threshold_reached": False,
+                "calibrated": False,
             }
         ]
 
@@ -587,12 +598,14 @@ class AbstractMailBoxTest(TestCase):
                 "recommended_label": "Sorted",
                 "score": 0.95,
                 "threshold_reached": True,
+                "calibrated": True,
             },
             {
                 "email_id": "id2",
                 "recommended_label": "Receipts",
                 "score": 0.3,
                 "threshold_reached": False,
+                "calibrated": False,
             },
         ]
 

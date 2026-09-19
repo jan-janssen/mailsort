@@ -2,7 +2,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from mailsort.__main__ import _format_recommendations_table, command_line_parser
-from mailsort.results import Prediction
+from mailsort.results import Prediction, ScoreType
 
 
 class ImapCliTest(TestCase):
@@ -85,6 +85,7 @@ class ImapCliTest(TestCase):
                 score=1.0,
                 threshold=0.9,
                 accepted=True,
+                score_type=ScoreType.RAW,
                 subject="Hello",
             )
         ]
@@ -176,6 +177,7 @@ class FormatRecommendationsTableTest(TestCase):
                     score=1.0,
                     threshold=0.9,
                     accepted=True,
+                    score_type=ScoreType.CALIBRATED,
                     subject="Hello",
                 ),
                 Prediction(
@@ -185,6 +187,7 @@ class FormatRecommendationsTableTest(TestCase):
                     score=0.0,
                     threshold=0.9,
                     accepted=False,
+                    score_type=ScoreType.RAW,
                     subject=None,
                 ),
             ]
@@ -194,8 +197,10 @@ class FormatRecommendationsTableTest(TestCase):
         self.assertIn("Hello", table)
         self.assertIn("Sorted", table)
         self.assertIn("True", table)
+        self.assertIn("calibrated", table)
         self.assertIn("INBOX\x1f2", table)
         self.assertIn("False", table)
+        self.assertIn("raw", table)
         # a missing subject/recommendation must not crash formatting or print "None"
         self.assertNotIn("None", table)
 

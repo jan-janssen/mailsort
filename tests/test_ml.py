@@ -300,8 +300,10 @@ class TestMlModel(unittest.TestCase):
         self.assertIsInstance(self.models["Label_1"], RandomForestClassifier)
 
     def test_get_predictions_from_machine_learning_models(self):
+        # recommendation_ratio=0.0 isolates label *selection* (the argmax) from thresholding,
+        # since any positive-class probability - however low - clears a threshold of 0.0.
         predictions = get_predictions_from_machine_learning_models(
-            self.df_features, self.models
+            self.df_features, self.models, recommendation_ratio=0.0
         )
         self.assertEqual(set(predictions.keys()), {"id1", "id2", "id3"})
         self.assertEqual(predictions["id1"], "Label_1")
@@ -314,6 +316,18 @@ class TestMlModel(unittest.TestCase):
         )
         self.assertIsNone(predictions["id1"])
 
+    def test_get_predictions_from_machine_learning_models_abstains_below_threshold(
+        self,
+    ):
+        # With only 3 training examples, the classifier is not equally confident about every
+        # message - id2 is a unique row (unlike id1/id3, which share their feature pattern), so
+        # its positive-class probability legitimately comes out lower. At the default 0.9
+        # threshold it should not clear the bar, even though the model does have an opinion.
+        predictions = get_predictions_from_machine_learning_models(
+            self.df_features, self.models
+        )
+        self.assertIsNone(predictions["id2"])
+
     def test_score_messages_with_machine_learning_models_matches_predictions(self):
         predictions = get_predictions_from_machine_learning_models(
             self.df_features, self.models
@@ -324,7 +338,14 @@ class TestMlModel(unittest.TestCase):
 
         self.assertEqual([entry["email_id"] for entry in scores], ["id1", "id2", "id3"])
         for entry in scores:
-            self.assertEqual(entry["recommended_label"], predictions[entry["email_id"]])
+            # score_messages_with_machine_learning_models always names a recommended_label, even
+            # when it does not clear the threshold (that is the whole point of the dry-run/preview
+            # API) - get_predictions_from_machine_learning_models collapses that case to None, so
+            # the two only agree once threshold_reached is accounted for.
+            expected_label = (
+                entry["recommended_label"] if entry["threshold_reached"] else None
+            )
+            self.assertEqual(expected_label, predictions[entry["email_id"]])
             self.assertEqual(entry["threshold_reached"], entry["score"] > 0.9)
             self.assertEqual(
                 entry["threshold_reached"], predictions[entry["email_id"]] is not None
@@ -377,6 +398,7 @@ class TestMlModel(unittest.TestCase):
                     "recommended_label": None,
                     "score": 0.0,
                     "threshold_reached": False,
+                    "calibrated": False,
                 }
                 for email_id in ["id1", "id2", "id3"]
             ],

@@ -32,6 +32,7 @@ Documentation
    preparation
    configuration
    architecture
+   evaluation
    troubleshooting
    support
    developer

@@ -4,11 +4,13 @@ import pandas
 from tqdm import tqdm
 
 from mailsort.ml import (
+    DEFAULT_MAX_CALIBRATION_CV_FOLDS,
+    DEFAULT_MIN_SAMPLES_PER_CLASS_FOR_CALIBRATION,
     encode_df_for_machine_learning,
     fit_machine_learning_models,
     score_messages_with_machine_learning_models,
 )
-from mailsort.results import Prediction, SortResult, SyncResult, TrainResult
+from mailsort.results import Prediction, ScoreType, SortResult, SyncResult, TrainResult
 
 
 class AbstractMailBox(ABC):
@@ -161,6 +163,7 @@ class AbstractMailBox(ABC):
                     score=0.0,
                     threshold=recommendation_ratio,
                     accepted=False,
+                    score_type=ScoreType.RAW,
                     subject=subject,
                 )
                 for message_id, subject in zip(
@@ -191,6 +194,9 @@ class AbstractMailBox(ABC):
                 score=entry["score"],
                 threshold=recommendation_ratio,
                 accepted=entry["threshold_reached"],
+                score_type=(
+                    ScoreType.CALIBRATED if entry["calibrated"] else ScoreType.RAW
+                ),
                 subject=subject_by_id.get(entry["email_id"]),
             )
             for entry in score_lst
@@ -204,6 +210,9 @@ class AbstractMailBox(ABC):
         bootstrap=True,
         include_deleted=False,
         max_workers=None,
+        calibrate=True,
+        min_samples_per_class_for_calibration=DEFAULT_MIN_SAMPLES_PER_CLASS_FOR_CALIBRATION,
+        max_calibration_cv_folds=DEFAULT_MAX_CALIBRATION_CV_FOLDS,
     ):
         """
         Fit machine learning models to emails stored in database and afterwards store machine learning models in
@@ -217,6 +226,13 @@ class AbstractMailBox(ABC):
                                  used to build each tree. (default: true)
             include_deleted (bool): Flag to include deleted emails - default False
             max_workers (int): maximum number of workers for the machine learning models
+            calibrate (bool): calibrate each folder's classifier when there is enough data to do
+                so safely - default: True. See mailsort.ml.calibration for what this means and why
+                it is conditional rather than automatic; see mailsort.ml.evaluation to check
+                whether the resulting scores behave the way you expect on your own data.
+            min_samples_per_class_for_calibration (int): see
+                mailsort.ml.calibration.should_calibrate()
+            max_calibration_cv_folds (int): see mailsort.ml.calibration.calibration_cv_folds()
 
         Returns:
             mailsort.results.TrainResult: the folders/labels a model was trained for
@@ -239,6 +255,9 @@ class AbstractMailBox(ABC):
             random_state=random_state,
             bootstrap=bootstrap,
             max_workers=max_workers,
+            calibrate=calibrate,
+            min_samples_per_class_for_calibration=min_samples_per_class_for_calibration,
+            max_calibration_cv_folds=max_calibration_cv_folds,
         )
         self._db_ml.store_models(
             model_dict=model_dict,

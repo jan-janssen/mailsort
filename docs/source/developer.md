@@ -28,15 +28,20 @@ with MailSorter(
 ```
 - `sync(quick=False, label_lst=None, email_format=None)` - update the local database from the mail server; returns
   a `SyncResult` with `new_message_count`, `updated_message_count` and `deleted_message_count`.
-- `train(n_estimators=100, max_features=400, random_state=42, bootstrap=True, include_deleted=False, max_workers=None)`
+- `train(n_estimators=100, max_features=400, random_state=42, bootstrap=True, include_deleted=False, max_workers=None, calibrate=True, min_samples_per_class_for_calibration=20, max_calibration_cv_folds=5)`
   - (re-)train one machine learning model per folder on the local database; returns a `TrainResult` with
-  `trained_label_lst` and `model_count`.
+  `trained_label_lst` and `model_count`. Each folder's classifier is calibrated when (and only when) it has enough
+  training data to do so safely - see [Evaluation and confidence](evaluation) and `mailsort.ml.calibration` below;
+  pass `calibrate=False` to keep every folder's raw score instead.
 - `predict(folder, recommendation_ratio=0.9, label_prefix="labels_")` - read-only; returns a `list[Prediction]`
   without moving, deleting or otherwise modifying anything on the server. See "Dry run / recommendation mode"
   below.
 - `sort(folder, recommendation_ratio=0.9, label_prefix="labels_")` - scores messages exactly as `predict()` does
   with the same arguments, then moves the ones that clear `recommendation_ratio`; returns a `SortResult` with
   `moved_lst` and `moved_count`. This is the only `MailSorter` method that changes the mailbox.
+  `recommendation_ratio` is a cutoff on a model score, not a guaranteed probability of being correct - see
+  [Evaluation and confidence](evaluation) for what it actually means and how to check it against your own data
+  before trusting it, with `mailsort.evaluation`/`mailsort evaluate`.
 
 `MailSorter` itself is a context manager - entering it returns the `MailSorter`, and exiting it (or calling
 `sorter.close()` directly) closes the wrapped mailbox, exactly like using `Imap` as a context manager directly.
@@ -165,9 +170,36 @@ imap.filter_messages_from_server(
 )
 ```
 It checks the server for new emails in the given folder, reloads the machine learning models from the local
-database and tries to predict the correct folder for these emails. The `recommendation_ratio` defines the level of
-certainty required to actually move the email, with `0.9` equalling a certainty of 90%. It returns a `SortResult`
-with the `(message_id, label)` pairs actually moved (`moved_lst`) and how many that is (`moved_count`).
+database and tries to predict the correct folder for these emails. `recommendation_ratio` is the cutoff a model
+score must clear to actually move the email - a threshold on a classifier score, not a guaranteed probability of
+being correct (see [Evaluation and confidence](evaluation) for what the score actually is and how to check what a
+given threshold achieves on your own data with `mailsort.evaluation`/`mailsort evaluate`). It returns a
+`SortResult` with the `(message_id, label)` pairs actually moved (`moved_lst`) and how many that is
+(`moved_count`).
+
+### Calibration
+Where a folder has enough training data, `fit_machine_learning_model_to_database()` (and `MailSorter.train()`
+above) also calibrates that folder's classifier - rescaling its scores against held-out data so a score more
+honestly reflects how often it is actually right, rather than leaving it as a raw, uncalibrated classifier score.
+See [Evaluation and confidence](evaluation) for the full reasoning; in short, `mailsort.ml.calibration`:
+```python
+from mailsort.ml.calibration import is_calibrated, should_calibrate
+
+should_calibrate(
+    y, min_samples_per_class=20
+)  # y: a folder's binary (0.0/1.0) training target
+```
+decides per folder whether there is enough data to calibrate safely (both classes need at least
+`min_samples_per_class_for_calibration` examples, 20 by default), and `is_calibrated(model)` tells you which kind
+of model you got back. Every `Prediction` also carries this as `score_type` (`ScoreType.CALIBRATED` or
+`ScoreType.RAW`), so the distinction is explicit wherever a score is used, not just at training time:
+```python
+from mailsort import ScoreType
+
+for prediction in sorter.predict("MailSortInbox"):
+    if prediction.score_type is ScoreType.RAW:
+        print(f"{prediction.message_id}: uncalibrated score, treat with more caution")
+```
 
 ## Dry run / recommendation mode
 `get_label_recommendations()` runs the exact same download and scoring steps as
@@ -194,6 +226,9 @@ classification result - with:
 - `accepted` (`bool`) - whether `score` clears `threshold`, i.e. whether `filter_messages_from_server()` would
   move this particular message for real, given the same `recommendation_ratio`. An abstained prediction
   (`accepted=False`) is never acted on.
+- `score_type` (`ScoreType`) - whether `score` is a calibrated probability (`ScoreType.CALIBRATED`) or a raw,
+  uncalibrated classifier score (`ScoreType.RAW`) - see [Evaluation and confidence](evaluation) and "Calibration"
+  above for what that distinction means and why it is never implicit.
 - `subject` (`str`/`None`) - the message subject, if available - display metadata, not itself part of the
   classification.
 
@@ -211,6 +246,49 @@ for prediction in predictions:
 ```
 The command line equivalent is `mailsort predict MailSortInbox` - see [Configuration](configuration).
 
+## Evaluation
+`recommendation_ratio` is a threshold on a model score, not a guaranteed probability of being correct - see
+[Evaluation and confidence](evaluation) for the full reasoning. `mailsort.api.evaluate_models()` is the Python
+equivalent of `mailsort evaluate`: it trains a separate, throwaway set of per-folder models on part of the local
+database and scores them against the rest, without touching the models `mailsort train` has already stored:
+```python
+from mailsort.api import evaluate_models
+
+report = evaluate_models(connection_str="sqlite:///email.db", recommendation_ratio=0.9)
+print(report.coverage, report.overall_precision)
+for folder_metrics in report.folder_metrics:
+    print(
+        folder_metrics.folder,
+        folder_metrics.support,
+        folder_metrics.precision,
+        folder_metrics.recall,
+        folder_metrics.f1,
+    )
+```
+`report` is an `EvaluationReport` - a frozen, JSON-serializable dataclass, like `Prediction` - with:
+- `coverage` (`float`) - fraction of held-out test messages accepted at `recommendation_ratio`.
+- `overall_precision` (`float`/`None`) - among *accepted* predictions only, how often the recommended folder was
+  actually correct; `None` if nothing was accepted. See [Evaluation and confidence](evaluation) for why this is
+  the number to weigh most heavily when picking a threshold.
+- `folder_metrics` (`list[FolderMetrics]`) - `precision`/`recall`/`f1`/`support`, plus `true_positive`/
+  `false_positive`/`misrouted`/`abstained` counts, per folder.
+- `confusion` (`dict[str, dict[str, int]]`) - `confusion[true_folder][recommended_folder]` counts, over accepted
+  predictions only.
+- `calibration_status` (`dict[str, bool]`) - whether each folder's held-out classifier ended up calibrated.
+- `train_message_count`/`test_message_count`/`excluded_message_count` - so you can judge how much to trust a
+  given report; see the limitations in [Evaluation and confidence](evaluation).
+
+To compare several thresholds without retraining for each one (what `mailsort evaluate --sweep` does), use the
+lower-level `mailsort.evaluation`/`mailsort.ml.evaluation` functions directly:
+```python
+from mailsort.evaluation import evaluate_at_threshold, score_holdout
+
+holdout = score_holdout(connection_str="sqlite:///email.db")  # trains and scores once
+for ratio in (0.7, 0.8, 0.9, 0.95):
+    report = evaluate_at_threshold(holdout, recommendation_ratio=ratio)
+    print(ratio, report.coverage, report.overall_precision)
+```
+
 ## The mailsort.api module
 `mailsort.api` re-exports the building blocks (database helpers, the abstract mailbox and message base classes,
 the machine learning helpers, `MailSorter` and its result types) that a package building its own mailbox
@@ -223,13 +301,17 @@ from mailsort.api import (
     DatabaseInterface,
     DatabaseStatus,
     DatabaseTemplate,
+    EvaluationReport,
+    FolderMetrics,
     MachineLearningDatabase,
     MailSorter,
     Prediction,
+    ScoreType,
     SortResult,
     SyncResult,
     TrainResult,
     email_date_converter,
+    evaluate_models,
     get_database_status,
     get_email_database,
     get_machine_learning_database,
@@ -239,7 +321,9 @@ from mailsort.api import (
 ```
 `MailSorter` and the result types are exported here specifically because they are generic over `AbstractMailBox`:
 a downstream package's own mailbox backend (a `gmailsorter` Gmail backend, for example) is itself an
-`AbstractMailBox` subclass, so it can be wrapped in this same `MailSorter` without any changes.
+`AbstractMailBox` subclass, so it can be wrapped in this same `MailSorter` without any changes. The same applies to
+`evaluate_models()`/`EvaluationReport`/`FolderMetrics` - evaluation only needs the local database, not anything
+IMAP-specific, so it works the same way for a `gmailsorter` Gmail-backed database too.
 
 Prefer importing from `mailsort.api` over `mailsort`'s internal modules (`mailsort.base.*`, `mailsort.ml.*`) when
 integrating with `mailsort` from another package, since `mailsort.api` is kept consistent across refactors while

@@ -8,7 +8,8 @@ from mailsort.__main__ import (
     _format_status_table,
     command_line_parser,
 )
-from mailsort.results import Prediction, SortResult
+from mailsort.ml.evaluation import HoldoutScores, ScoredTestMessage
+from mailsort.results import Prediction, ScoreType, SortResult
 from mailsort.status import DatabaseStatus
 
 
@@ -113,6 +114,7 @@ class TrainCommandTest(TestCase):
             connection_str="sqlite:///:memory:",
             db_user_id=2,
             include_deleted=False,
+            calibrate=True,
         )
 
     @patch("mailsort.__main__.train_machine_learning_models")
@@ -125,6 +127,20 @@ class TrainCommandTest(TestCase):
             connection_str="sqlite:///email.db",
             db_user_id=1,
             include_deleted=True,
+            calibrate=True,
+        )
+
+    @patch("mailsort.__main__.train_machine_learning_models")
+    def test_train_no_calibration_flag_is_forwarded(self, train_mock):
+        train_mock.return_value = 0
+
+        command_line_parser(["train", "--no-calibration"])
+
+        train_mock.assert_called_once_with(
+            connection_str="sqlite:///email.db",
+            db_user_id=1,
+            include_deleted=False,
+            calibrate=False,
         )
 
     @patch("mailsort.__main__.Imap")
@@ -156,6 +172,7 @@ class PredictCommandTest(TestCase):
                 score=1.0,
                 threshold=0.9,
                 accepted=True,
+                score_type=ScoreType.CALIBRATED,
                 subject="Hello",
             )
         ]
@@ -310,6 +327,121 @@ class StatusCommandTest(TestCase):
         status_mock.side_effect = RuntimeError("no such table")
 
         exit_code = command_line_parser(["status"])
+
+        self.assertEqual(exit_code, _EXIT_RUNTIME_ERROR)
+
+
+class EvaluateCommandTest(TestCase):
+    @staticmethod
+    def _holdout():
+        return HoldoutScores(
+            train_message_count=80,
+            test_message_count=2,
+            excluded_test_message_count=0,
+            trained_label_lst=["Inbox", "Spam"],
+            calibration_status={"Inbox": True, "Spam": False},
+            scored_message_lst=[
+                ScoredTestMessage(
+                    message_id="id1",
+                    true_folder_lst=["Inbox"],
+                    recommended_folder="Inbox",
+                    score=0.95,
+                    calibrated=True,
+                ),
+                ScoredTestMessage(
+                    message_id="id2",
+                    true_folder_lst=["Spam"],
+                    recommended_folder="Spam",
+                    score=0.4,
+                    calibrated=False,
+                ),
+            ],
+        )
+
+    @patch("mailsort.__main__.score_holdout")
+    def test_evaluate_reports_single_threshold(self, score_holdout_mock):
+        score_holdout_mock.return_value = self._holdout()
+
+        with patch("builtins.print") as print_mock:
+            exit_code = command_line_parser(["evaluate", "-d", "sqlite:///email.db"])
+
+        self.assertEqual(exit_code, _EXIT_OK)
+        score_holdout_mock.assert_called_once_with(
+            connection_str="sqlite:///email.db",
+            db_user_id=1,
+            test_size=0.25,
+            calibrate=True,
+        )
+        printed = "\n".join(str(call.args[0]) for call in print_mock.call_args_list)
+        self.assertIn("recommendation-ratio=0.90", printed)
+        self.assertIn("Inbox", printed)
+        self.assertIn("calibrated", printed)
+        # id2's score of 0.4 abstains at the default 0.9 threshold, so only id1 is accepted
+        self.assertIn("Coverage: 1/2 accepted", printed)
+
+    @patch("mailsort.__main__.score_holdout")
+    def test_evaluate_forwards_options(self, score_holdout_mock):
+        score_holdout_mock.return_value = self._holdout()
+
+        command_line_parser(
+            [
+                "evaluate",
+                "-d",
+                "sqlite:///other.db",
+                "-i",
+                "2",
+                "--test-size",
+                "0.4",
+                "--no-calibration",
+            ]
+        )
+
+        score_holdout_mock.assert_called_once_with(
+            connection_str="sqlite:///other.db",
+            db_user_id=2,
+            test_size=0.4,
+            calibrate=False,
+        )
+
+    @patch("mailsort.__main__.score_holdout")
+    def test_evaluate_sweep_reports_every_threshold(self, score_holdout_mock):
+        score_holdout_mock.return_value = self._holdout()
+
+        with patch("builtins.print") as print_mock:
+            exit_code = command_line_parser(["evaluate", "--sweep"])
+
+        self.assertEqual(exit_code, _EXIT_OK)
+        printed = "\n".join(str(call.args[0]) for call in print_mock.call_args_list)
+        for ratio in ("0.50", "0.70", "0.80", "0.90", "0.95", "0.99"):
+            self.assertIn(ratio, printed)
+
+    @patch("mailsort.__main__.score_holdout")
+    def test_evaluate_with_no_scoreable_messages_does_not_crash(
+        self, score_holdout_mock
+    ):
+        score_holdout_mock.return_value = HoldoutScores(
+            train_message_count=0,
+            test_message_count=0,
+            excluded_test_message_count=0,
+            trained_label_lst=[],
+            calibration_status={},
+            scored_message_lst=[],
+        )
+
+        with patch("builtins.print") as print_mock:
+            exit_code = command_line_parser(["evaluate"])
+
+        self.assertEqual(exit_code, _EXIT_OK)
+        printed = "\n".join(str(call.args[0]) for call in print_mock.call_args_list)
+        self.assertIn("Not enough data", printed)
+
+    @patch("mailsort.__main__.score_holdout")
+    def test_evaluate_runtime_error_returns_runtime_error_code(
+        self, score_holdout_mock
+    ):
+        score_holdout_mock.side_effect = RuntimeError("no such table")
+
+        exit_code = command_line_parser(["evaluate"])
 
         self.assertEqual(exit_code, _EXIT_RUNTIME_ERROR)
 
