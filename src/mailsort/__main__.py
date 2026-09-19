@@ -1,5 +1,4 @@
 import argparse
-import os
 
 from mailsort import Imap
 
@@ -25,18 +24,7 @@ def command_line_parser():
     )
     parser.add_argument(
         "--password",
-        help=(
-            "IMAP account password. Prefer --password-env or a password manager "
-            "to avoid exposing the password in your shell history or process list."
-        ),
-    )
-    parser.add_argument(
-        "--password-env",
-        default="IMAP_PASSWORD",
-        help=(
-            "Name of the environment variable holding the IMAP account password - "
-            "default: IMAP_PASSWORD . Ignored if --password is set."
-        ),
+        help="IMAP account password.",
     )
     parser.add_argument(
         "--no-ssl",
@@ -66,21 +54,17 @@ def command_line_parser():
     )
     args = parser.parse_args()
     db_user_id = int(args.identification) if args.identification else 1
-    password = args.password or os.environ.get(args.password_env)
     if not args.host or not args.username:
         print("Please provide --host and --username.")
-    elif not password:
-        print(
-            f"Please provide --password or set the {args.password_env} "
-            "environment variable to your IMAP password."
-        )
+    elif not args.password:
+        print("Please provide --password.")
     else:
         database = args.database or "sqlite:///email.db"
         imap = Imap(
             host=args.host,
             port=args.port,
             username=args.username,
-            password=password,
+            password=args.password,
             connection_str=database,
             db_user_id=db_user_id,
             use_ssl=not args.no_ssl,
