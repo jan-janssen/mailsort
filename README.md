@@ -40,3 +40,22 @@ imap.update_database(quick=False)
 imap.fit_machine_learning_model_to_database()
 imap.filter_messages_from_server(label="some_label", recommendation_ratio=0.9)
 ```
+
+## API for downstream packages
+Packages built on top of `mailsort`, such as `gmailsorter`, should import the shared database and
+machine learning building blocks from `mailsort.api` rather than from mailsort's internal modules
+directly. This keeps `mailsort.api` as the single place that needs to stay consistent when
+mailsort's internals are refactored.
+```python
+from mailsort.api import (
+    AbstractMailBox,
+    AbstractMessage,
+    DatabaseInterface,
+    DatabaseTemplate,
+    MachineLearningDatabase,
+    email_date_converter,
+    get_email_database,
+    get_machine_learning_database,
+    strip_html_tags,
+)
+```
