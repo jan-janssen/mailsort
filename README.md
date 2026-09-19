@@ -22,8 +22,10 @@ pip install mailsort
 mailsort --host imap.example.com --username user@example.com -u
 mailsort --host imap.example.com --username user@example.com -l "some_label"
 ```
-The IMAP password is read from the `IMAP_PASSWORD` environment variable (configurable with
-`--password-env`).
+The IMAP password can be provided directly with `--password`, or read from the `IMAP_PASSWORD`
+environment variable (configurable with `--password-env`) if `--password` is not set. Prefer the
+environment variable or a password manager over `--password` to avoid exposing the password in
+your shell history or process list.
 
 ## Python interface
 ```python

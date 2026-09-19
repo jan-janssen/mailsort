@@ -103,6 +103,84 @@ class ImapCliTest(TestCase):
         imap_instance.filter_messages_from_server.assert_not_called()
 
     @patch("mailsort.__main__.Imap")
+    def test_password_argument_wires_imap(self, imap_cls):
+        imap_instance = imap_cls.return_value
+        with patch(
+            "sys.argv",
+            [
+                "mailsort",
+                "--host",
+                "localhost",
+                "--username",
+                "user",
+                "--password",
+                "supplied-on-cli",
+                "-d",
+                "sqlite:///:memory:",
+                "-l",
+                "MailSortInbox",
+            ],
+        ):
+            command_line_parser()
+
+        imap_cls.assert_called_once_with(
+            host="localhost",
+            port=993,
+            username="user",
+            password="supplied-on-cli",
+            connection_str="sqlite:///:memory:",
+            db_user_id=1,
+            use_ssl=True,
+            email_download_format="metadata",
+        )
+        imap_instance.filter_messages_from_server.assert_called_once_with(
+            label="MailSortInbox",
+            recommendation_ratio=0.9,
+            label_prefix="labels_",
+        )
+
+    @patch("mailsort.__main__.Imap")
+    def test_password_argument_takes_precedence_over_env(self, imap_cls):
+        imap_instance = imap_cls.return_value
+        os.environ["IMAP_PASSWORD"] = "from-env"
+        try:
+            with patch(
+                "sys.argv",
+                [
+                    "mailsort",
+                    "--host",
+                    "localhost",
+                    "--username",
+                    "user",
+                    "--password",
+                    "from-cli",
+                    "-d",
+                    "sqlite:///:memory:",
+                    "-l",
+                    "MailSortInbox",
+                ],
+            ):
+                command_line_parser()
+        finally:
+            del os.environ["IMAP_PASSWORD"]
+
+        imap_cls.assert_called_once_with(
+            host="localhost",
+            port=993,
+            username="user",
+            password="from-cli",
+            connection_str="sqlite:///:memory:",
+            db_user_id=1,
+            use_ssl=True,
+            email_download_format="metadata",
+        )
+        imap_instance.filter_messages_from_server.assert_called_once_with(
+            label="MailSortInbox",
+            recommendation_ratio=0.9,
+            label_prefix="labels_",
+        )
+
+    @patch("mailsort.__main__.Imap")
     def test_missing_password_env_skips_wiring(self, imap_cls):
         os.environ.pop("IMAP_PASSWORD", None)
         with patch(

@@ -24,11 +24,18 @@ def command_line_parser():
         help="IMAP account username.",
     )
     parser.add_argument(
+        "--password",
+        help=(
+            "IMAP account password. Prefer --password-env or a password manager "
+            "to avoid exposing the password in your shell history or process list."
+        ),
+    )
+    parser.add_argument(
         "--password-env",
         default="IMAP_PASSWORD",
         help=(
             "Name of the environment variable holding the IMAP account password - "
-            "default: IMAP_PASSWORD ."
+            "default: IMAP_PASSWORD . Ignored if --password is set."
         ),
     )
     parser.add_argument(
@@ -59,12 +66,13 @@ def command_line_parser():
     )
     args = parser.parse_args()
     db_user_id = int(args.identification) if args.identification else 1
-    password = os.environ.get(args.password_env)
+    password = args.password or os.environ.get(args.password_env)
     if not args.host or not args.username:
         print("Please provide --host and --username.")
     elif not password:
         print(
-            f"Please set the {args.password_env} environment variable to your IMAP password."
+            f"Please provide --password or set the {args.password_env} "
+            "environment variable to your IMAP password."
         )
     else:
         database = args.database or "sqlite:///email.db"
