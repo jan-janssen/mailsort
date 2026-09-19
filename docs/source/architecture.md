@@ -77,6 +77,10 @@ To avoid ever recommending a folder you would not want emails moved into automat
 marked with `\Noselect`, and special-use folders such as Trash, Spam/Junk, Sent and Drafts, both when training and
 when predicting.
 
+If you want to see steps 1-4 of this loop without ever letting `mailsort` perform step 5, see the dry run /
+recommendation mode described in [Configuration](configuration) - it downloads and scores messages exactly as
+described above, but stops before moving anything.
+
 ## Learning from your corrections
 `mailsort` does not try to be clever about disagreements - it relies entirely on your folders. If you move an email
 to a different folder than the one `mailsort` suggested, that correction becomes part of the training data the next

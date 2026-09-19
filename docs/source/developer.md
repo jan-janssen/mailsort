@@ -88,6 +88,40 @@ It checks the server for new emails in the given folder, reloads the machine lea
 database and tries to predict the correct folder for these emails. The `recommendation_ratio` defines the level of
 certainty required to actually move the email, with `0.9` equalling a certainty of 90%.
 
+## Dry run / recommendation mode
+`get_label_recommendations()` runs the exact same download and scoring steps as
+`filter_messages_from_server()`, but only returns the result instead of acting on it - it never moves, deletes,
+archives or otherwise modifies anything on the server, so it is safe to call at any time, including before you
+trust the model with your mailbox:
+```
+recommendations = imap.get_label_recommendations(
+    label="MailSortInbox",
+    recommendation_ratio=0.9,
+    label_prefix="labels_",
+)
+```
+`recommendations` is a list with one dict per message currently in `"MailSortInbox"`, each with:
+- `message_id` (`str`) - id that uniquely identifies the message.
+- `subject` (`str`/`None`) - the message subject, if available.
+- `recommended_label` (`str`/`None`) - the folder the model scores highest for this message, or `None` if no
+  machine learning model has been trained yet (run `fit_machine_learning_model_to_database()` first).
+- `score` (`float`) - the model's score for `recommended_label`.
+- `threshold_reached` (`bool`) - whether `score` clears `recommendation_ratio`, i.e. whether
+  `filter_messages_from_server()` would move this particular message for real, given the same
+  `recommendation_ratio`.
+
+For example, to only print the messages that would actually be moved:
+```
+for recommendation in recommendations:
+    if recommendation["threshold_reached"]:
+        print(
+            f"{recommendation['subject']!r} -> {recommendation['recommended_label']} "
+            f"(score {recommendation['score']:.2f})"
+        )
+```
+The command line equivalent is `mailsort ... -l MailSortInbox --dry-run` - see
+[Configuration](configuration).
+
 ## The mailsort.api module
 `mailsort.api` re-exports the building blocks (database helpers, the abstract mailbox and message base classes,
 and the machine learning helpers) that a package building its own mailbox integration on top of `mailsort` - such
