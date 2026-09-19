@@ -88,6 +88,24 @@ class DatabaseInterface(DatabaseTemplate):
             .order_by(EmailContent.id)
         ]
 
+    def count_emails(self, include_deleted: bool = True, user_id: int = 1) -> int:
+        """
+        Count emails stored in the local database, without loading their content.
+
+        Args:
+            include_deleted (bool): count emails marked as deleted too - default: True
+            user_id (int): database user id
+
+        Returns:
+            int: number of matching emails
+        """
+        query = self._session.query(EmailContent).filter(
+            EmailContent.user_id == user_id
+        )
+        if not include_deleted:
+            query = query.filter(EmailContent.email_deleted.is_(False))
+        return query.count()
+
     def mark_emails_as_deleted(
         self, message_id_lst: list[str], user_id: int = 1
     ) -> None:

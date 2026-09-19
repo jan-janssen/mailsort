@@ -38,23 +38,49 @@ pip install mailsort
 ```
 
 ## Command line interface
+`mailsort` is organized around five subcommands - `sync`, `train`, `predict`, `sort` and `status`:
 ```
-mailsort --host imap.example.com --username user@example.com --password "..." -u
-mailsort --host imap.example.com --username user@example.com --password "..." -l "some_label"
+mailsort sync --host imap.example.com --username user@example.com --password "..."
+mailsort train
+mailsort predict some_label
+mailsort sort some_label
+mailsort status
 ```
 The IMAP password is provided with `--password`, e.g. by having your shell pull it from a
 password manager.
 
-Add `-n`/`--dry-run` to preview what the second command above would do, without moving, deleting
-or otherwise modifying any message on the server:
+- `sync` downloads new and changed messages from the mail server into the local database.
+- `train` (re-)trains the machine learning model on the local database - it does not connect to
+  the mail server, so it also works offline once `sync` has run at least once.
+- `predict FOLDER` reports what the trained model would recommend for the messages currently in
+  `FOLDER`, without moving, deleting or otherwise modifying anything on the server:
+  ```
+  MESSAGE ID                          SUBJECT                                  RECOMMENDED LABEL     SCORE  REACHED
+  --------------------------------------------------------------------------------------------------------------
+  some_label\x1f101                   Your invoice for March                  Receipts                1.00     True
+  some_label\x1f102                   Let's catch up next week                -                       0.00    False
+  ```
+- `sort FOLDER` does the same scoring as `predict`, but actually moves the messages whose score
+  clears the configured threshold (`--recommendation-ratio`, 90% by default).
+- `status` reports the local database location, how many messages it knows about, and how many
+  per-folder models have been trained - also without connecting to the mail server.
+
+Run `mailsort --help` or `mailsort <command> --help` for the full list of options and examples.
+
+### Upgrading from the pre-1.0 CLI
+The previous flat `-u/--update` and `-l/--label` options still work exactly as before, but are
+deprecated in favor of the subcommands above:
 ```
+mailsort --host imap.example.com --username user@example.com --password "..." -u
+mailsort --host imap.example.com --username user@example.com --password "..." -l "some_label"
 mailsort --host imap.example.com --username user@example.com --password "..." -l "some_label" --dry-run
 ```
+is equivalent to:
 ```
-MESSAGE ID                          SUBJECT                                  RECOMMENDED LABEL     SCORE  REACHED
---------------------------------------------------------------------------------------------------------------
-some_label\x1f101                   Your invoice for March                  Receipts                1.00     True
-some_label\x1f102                   Let's catch up next week                -                       0.00    False
+mailsort sync --host imap.example.com --username user@example.com --password "..."
+mailsort train
+mailsort sort some_label --host imap.example.com --username user@example.com --password "..."
+mailsort predict some_label --host imap.example.com --username user@example.com --password "..."
 ```
 
 ## Python interface
@@ -98,6 +124,18 @@ Each entry is a dict with:
 - `threshold_reached` - whether `score` clears `recommendation_ratio`, i.e. whether
   `filter_messages_from_server()` would move this message for real
 
+### Train and inspect the local database without a mail connection
+`train_machine_learning_models()` and `get_database_status()` are the functions behind the
+`train` and `status` CLI commands. Both only need the database connection string, not mail server
+credentials:
+```python
+from mailsort.api import get_database_status, train_machine_learning_models
+
+train_machine_learning_models(connection_str="sqlite:///email.db")
+status = get_database_status(connection_str="sqlite:///email.db")
+print(status.message_count, status.trained_label_lst)
+```
+
 ## API for downstream packages
 Packages built on top of `mailsort`, such as `gmailsorter`, should import the shared database and
 machine learning building blocks from `mailsort.api` rather than from mailsort's internal modules
@@ -108,11 +146,14 @@ from mailsort.api import (
     AbstractMailBox,
     AbstractMessage,
     DatabaseInterface,
+    DatabaseStatus,
     DatabaseTemplate,
     MachineLearningDatabase,
     email_date_converter,
+    get_database_status,
     get_email_database,
     get_machine_learning_database,
     strip_html_tags,
+    train_machine_learning_models,
 )
 ```

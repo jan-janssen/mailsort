@@ -7,6 +7,8 @@ from mailsort.base.mail import AbstractMailBox
 from mailsort.base.message import AbstractMessage, email_date_converter, strip_html_tags
 from mailsort.ml import get_machine_learning_database
 from mailsort.ml.database import MachineLearningDatabase
+from mailsort.status import DatabaseStatus, get_database_status
+from mailsort.training import train_machine_learning_models
 
 
 class ApiTest(TestCase):
@@ -26,6 +28,9 @@ class ApiTest(TestCase):
         self.assertIs(api.strip_html_tags, strip_html_tags)
         self.assertIs(api.get_machine_learning_database, get_machine_learning_database)
         self.assertIs(api.MachineLearningDatabase, MachineLearningDatabase)
+        self.assertIs(api.get_database_status, get_database_status)
+        self.assertIs(api.DatabaseStatus, DatabaseStatus)
+        self.assertIs(api.train_machine_learning_models, train_machine_learning_models)
 
     def test_all_matches_exported_names(self):
         self.assertEqual(
@@ -34,12 +39,15 @@ class ApiTest(TestCase):
                 "AbstractMailBox",
                 "AbstractMessage",
                 "DatabaseInterface",
+                "DatabaseStatus",
                 "DatabaseTemplate",
                 "MachineLearningDatabase",
                 "email_date_converter",
+                "get_database_status",
                 "get_email_database",
                 "get_machine_learning_database",
                 "strip_html_tags",
+                "train_machine_learning_models",
             ],
         )
 

@@ -131,6 +131,21 @@ class TestMlDatabase(unittest.TestCase):
         retrieved_labels = self.db._get_labels(user_id=1)
         self.assertEqual(set(retrieved_labels), {"label1", "label2"})
 
+    def test_get_labels_public_alias(self):
+        labels = [
+            MachineLearningLabels(
+                label_id="label1", random_forest=pickle.dumps("test"), user_id=1
+            ),
+            MachineLearningLabels(
+                label_id="label2", random_forest=pickle.dumps("test"), user_id=2
+            ),
+        ]
+        self.session.add_all(labels)
+        self.session.commit()
+
+        self.assertEqual(self.db.get_labels(user_id=1), ["label1"])
+        self.assertEqual(self.db.get_labels(user_id=2), ["label2"])
+
     def test_get_features(self):
         features = [
             MachineLearningFeatures(feature="feature1", user_id=1),

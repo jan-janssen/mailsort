@@ -128,6 +128,18 @@ class MachineLearningDatabase(DatabaseTemplate):
             for label_obj in label_obj_lst
         }, feature_lst
 
+    def get_labels(self, user_id: int = 1) -> list[str]:
+        """
+        List the folders/labels a machine learning model has been trained for.
+
+        Args:
+            user_id (int): database user id
+
+        Returns:
+            list: label/folder names with a stored model - does not unpickle the models
+        """
+        return self._get_labels(user_id=user_id)
+
     def _get_labels(self, user_id: int = 1) -> list[str]:
         return [
             label[0]
