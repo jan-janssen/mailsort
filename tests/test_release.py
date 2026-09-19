@@ -69,6 +69,35 @@ dependencies:
                 pyproject_content=pyproject, env_content=environment
             )
 
+    def test_strict_greater_than_is_preserved(self):
+        pyproject = """
+[project]
+dependencies = ["numpy==2.5.1"]
+"""
+        environment = """
+dependencies:
+- numpy >1.23.5
+"""
+        updated = self.release.update_pyproject_for_release(
+            pyproject_content=pyproject, env_content=environment
+        )
+        self.assertIn("numpy>1.23.5,<=2.5.1", updated)
+
+    def test_nested_pip_dependencies_raise_error(self):
+        pyproject = """
+[project]
+dependencies = ["numpy==2.5.1"]
+"""
+        environment = """
+dependencies:
+- pip:
+  - numpy==1.23.5
+"""
+        with self.assertRaises(ValueError):
+            self.release.update_pyproject_for_release(
+                pyproject_content=pyproject, env_content=environment
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

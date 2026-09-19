@@ -17,19 +17,21 @@ def get_exact_pin_versions(pyproject_content):
     return versions
 
 
-def extract_lower_version(constraint):
+def extract_lower_constraint(constraint):
     if not constraint:
         return None
     for part in constraint.split(","):
         normalized = part.strip().replace(" ", "")
-        if normalized.startswith(">="):
-            return normalized[2:]
+        if not normalized:
+            continue
         if normalized.startswith("=="):
-            return normalized[2:]
+            return f">={normalized[2:]}"
+        if normalized.startswith(">="):
+            return f">={normalized[2:]}"
         if normalized.startswith("="):
-            return normalized[1:]
+            return f">={normalized[1:]}"
         if normalized.startswith(">"):
-            return normalized[1:]
+            return normalized
     return None
 
 
@@ -38,7 +40,7 @@ def parse_conda_dependency(dep):
     if not match:
         return None, None
     name, constraint = match.groups()
-    return name, extract_lower_version(constraint)
+    return name, extract_lower_constraint(constraint)
 
 
 def get_env_versions(env_content):
@@ -56,16 +58,22 @@ def get_env_versions(env_content):
         if not line.startswith("-"):
             continue
         dep = line.lstrip("-").strip()
+        if dep == "pip:":
+            msg = (
+                "Nested pip dependencies are not supported in environment.yml for "
+                "release lower-bound extraction."
+            )
+            raise ValueError(msg)
         name, version = parse_conda_dependency(dep=dep)
         if name and version:
             versions[name] = version
     return versions
 
 
-def to_release_constraint(dep, high_version, low_version):
-    if low_version == high_version:
+def to_release_constraint(dep, high_version, low_constraint):
+    if low_constraint == f">={high_version}":
         return f"{dep}=={high_version}"
-    return f"{dep}>={low_version},<={high_version}"
+    return f"{dep}{low_constraint},<={high_version}"
 
 
 def update_dependencies(pyproject_content, version_low_dict, version_high_dict):
