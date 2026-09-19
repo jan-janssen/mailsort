@@ -74,6 +74,33 @@ imap.fit_machine_learning_model_to_database(
     include_deleted=False,
 )
 ```
+This is the equivalent of `mailsort sort`/`mailsort predict`'s `Imap` object retraining. If you only need to
+(re-)train from an already-synced local database - the `mailsort train` CLI command's use case - use
+`train_machine_learning_models()` instead, which does not need a mail server connection at all:
+```python
+from mailsort.api import train_machine_learning_models
+
+train_machine_learning_models(
+    connection_str="sqlite:///email.db",
+    n_estimators=100,
+    max_features=400,
+    random_state=42,
+    bootstrap=True,
+    include_deleted=False,
+)
+```
+
+### Inspect the local database
+`get_database_status()` reports the same information as the `mailsort status` CLI command - the database
+location, how many messages it knows about, and which folders a model has been trained for - also without
+connecting to the mail server:
+```python
+from mailsort.api import get_database_status
+
+status = get_database_status(connection_str="sqlite:///email.db")
+print(status.message_count, status.active_message_count, status.deleted_message_count)
+print(status.trained_label_lst, status.feature_count)
+```
 
 ### Filter emails using machine learning
 Assign new emails in the folder `"MailSortInbox"` to the folder that best matches them:
@@ -119,8 +146,7 @@ for recommendation in recommendations:
             f"(score {recommendation['score']:.2f})"
         )
 ```
-The command line equivalent is `mailsort ... -l MailSortInbox --dry-run` - see
-[Configuration](configuration).
+The command line equivalent is `mailsort predict MailSortInbox` - see [Configuration](configuration).
 
 ## The mailsort.api module
 `mailsort.api` re-exports the building blocks (database helpers, the abstract mailbox and message base classes,
@@ -131,12 +157,15 @@ from mailsort.api import (
     AbstractMailBox,
     AbstractMessage,
     DatabaseInterface,
+    DatabaseStatus,
     DatabaseTemplate,
     MachineLearningDatabase,
     email_date_converter,
+    get_database_status,
     get_email_database,
     get_machine_learning_database,
     strip_html_tags,
+    train_machine_learning_models,
 )
 ```
 Prefer importing from `mailsort.api` over `mailsort`'s internal modules (`mailsort.base.*`, `mailsort.ml.*`) when

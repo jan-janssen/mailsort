@@ -1,10 +1,12 @@
+from datetime import datetime
 from unittest import TestCase
 from unittest.mock import MagicMock
-from datetime import datetime
+
 import pandas
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from mailsort.base.database import get_email_database, EmailContent, EmailFrom
+
+from mailsort.base.database import EmailFrom, get_email_database
 
 
 class DatabaseTest(TestCase):
@@ -37,6 +39,17 @@ class DatabaseTest(TestCase):
 
     def test_get_all_emails(self):
         self.assertEqual(len(self.database.get_all_emails()), 1)
+
+    def test_count_emails(self):
+        self.assertEqual(self.database.count_emails(), 1)
+        self.assertEqual(self.database.count_emails(include_deleted=False), 1)
+        self.assertEqual(self.database.count_emails(user_id=2), 0)
+
+    def test_count_emails_excludes_deleted_when_requested(self):
+        self.database.mark_emails_as_deleted(message_id_lst=["myid123"], user_id=1)
+
+        self.assertEqual(self.database.count_emails(include_deleted=True), 1)
+        self.assertEqual(self.database.count_emails(include_deleted=False), 0)
 
     def test_get_emails_by_label(self):
         self.assertEqual(

@@ -29,7 +29,8 @@ behaviour, not a bug.
 
 Beyond that, a brand-new folder with very few emails filed into it will rarely reach the default 90%
 `recommendation_ratio` needed to be suggested - keep sorting a few more emails into it by hand and retrain
-(`-u`/`update_database()` followed by `fit_machine_learning_model_to_database()`) before expecting suggestions.
+(`mailsort sync` followed by `mailsort train`, or `update_database()` followed by
+`fit_machine_learning_model_to_database()` in the Python interface) before expecting suggestions.
 
 ## `Could not move IMAP message ... to ...`
 This means the IMAP server rejected the `MOVE` (or fallback `COPY` + `STORE \Deleted`) command `mailsort` issued to
