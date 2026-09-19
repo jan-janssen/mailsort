@@ -1,66 +1,83 @@
-def get_setup_version_and_pattern(setup_content):
-    depend_lst, version_lst = [], []
-    for line in setup_content:
-        if "==" in line:
-            dep_lst = (
-                line.split("= [")[-1]
-                .split("]\n")[0]
-                .replace(" ", "")
-                .replace('"', "")
-                .replace("'", "")
-                .split(",")
-            )
-            for dep in dep_lst:
-                if dep != "\n":
-                    version_lst.append(dep.split("==")[1])
-                    depend_lst.append(dep.split("==")[0])
-    return {dep: version for dep, version in zip(depend_lst, version_lst)}
+import tomllib
 
 
-def get_env_version(env_content):
-    read_flag = False
-    depend_lst, version_lst = [], []
-    for line in env_content:
-        if "dependencies:" in line:
-            read_flag = True
-        elif read_flag:
-            dep_lst = line.replace("-", "").replace(" ", "").replace("\n", "").split("=")
-            if len(dep_lst) == 2:
-                depend_lst.append(dep_lst[0])
-                version_lst.append(dep_lst[1])
-    return {dep: version for dep, version in zip(depend_lst, version_lst)}
+def get_exact_pin_versions(pyproject_content):
+    pyproject_dict = tomllib.loads(pyproject_content)
+    versions = {}
+    for section, key in [("build-system", "requires"), ("project", "dependencies")]:
+        for dep in pyproject_dict.get(section, {}).get(key, []):
+            if "==" in dep:
+                name, version = dep.split("==", 1)
+                versions[name] = version
+    return versions
 
 
-def update_dependencies(setup_content, version_low_dict, version_high_dict):
-    version_combo_dict = {}
-    for dep, ver in version_high_dict.items():
-        if dep in version_low_dict and version_low_dict[dep] != ver:
-            version_combo_dict[dep] = f"{dep}>={version_low_dict[dep]},<={ver}"
-        else:
-            version_combo_dict[dep] = f"{dep}=={ver}"
+def get_env_versions(env_content):
+    versions = {}
+    in_dependencies = False
+    for raw_line in env_content.splitlines():
+        line = raw_line.strip()
+        if line == "dependencies:":
+            in_dependencies = True
+            continue
+        if not in_dependencies:
+            continue
+        if raw_line and not raw_line.startswith((" ", "\t", "-")):
+            break
+        if not line.startswith("-"):
+            continue
+        dep = line.lstrip("-").strip()
+        if "=" in dep:
+            name, version = dep.split("=", 1)
+            if name and version:
+                versions[name.strip()] = version.strip()
+    return versions
 
-    setup_content_new = ""
-    pattern_dict = {dep: f"{dep}=={ver}" for dep, ver in version_high_dict.items()}
-    for line in setup_content:
-        for dep, pattern in pattern_dict.items():
-            if pattern in line:
-                line = line.replace(pattern, version_combo_dict[dep])
-        setup_content_new += line
-    return setup_content_new
+
+def to_release_constraint(dep, high_version, low_version):
+    if low_version == high_version:
+        return f"{dep}=={high_version}"
+    return f"{dep}>={low_version},<={high_version}"
+
+
+def update_dependencies(pyproject_content, version_low_dict, version_high_dict):
+    missing_dependencies = sorted(
+        [dep for dep in version_high_dict if dep not in version_low_dict]
+    )
+    if missing_dependencies:
+        msg = "Missing lower-bound versions for dependencies: " + ", ".join(
+            missing_dependencies
+        )
+        raise ValueError(msg)
+
+    updated_content = pyproject_content
+    for dep, high_version in version_high_dict.items():
+        old = f"{dep}=={high_version}"
+        new = to_release_constraint(dep, high_version, version_low_dict[dep])
+        updated_content = updated_content.replace(old, new)
+    return updated_content
+
+
+def update_pyproject_for_release(pyproject_content, env_content):
+    version_high_dict = get_exact_pin_versions(pyproject_content=pyproject_content)
+    version_low_dict = get_env_versions(env_content=env_content)
+    return update_dependencies(
+        pyproject_content=pyproject_content,
+        version_low_dict=version_low_dict,
+        version_high_dict=version_high_dict,
+    )
 
 
 if __name__ == "__main__":
     with open("pyproject.toml", "r", encoding="utf-8") as file:
-        setup_content = file.readlines()
+        setup_content = file.read()
 
     with open("environment.yml", "r", encoding="utf-8") as file:
-        env_content = file.readlines()
+        env_content = file.read()
 
-    setup_content_new = update_dependencies(
-        setup_content=setup_content[2:],
-        version_low_dict=get_env_version(env_content=env_content),
-        version_high_dict=get_setup_version_and_pattern(setup_content=setup_content[2:]),
+    setup_content_new = update_pyproject_for_release(
+        pyproject_content=setup_content, env_content=env_content
     )
 
     with open("pyproject.toml", "w", encoding="utf-8") as file:
-        file.writelines("".join(setup_content[:2]) + setup_content_new)
+        file.write(setup_content_new)
