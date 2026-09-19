@@ -185,7 +185,9 @@ See [Evaluation and confidence](evaluation) for the full reasoning; in short, `m
 ```python
 from mailsort.ml.calibration import is_calibrated, should_calibrate
 
-should_calibrate(y, min_samples_per_class=20)  # y: a folder's binary (0.0/1.0) training target
+should_calibrate(
+    y, min_samples_per_class=20
+)  # y: a folder's binary (0.0/1.0) training target
 ```
 decides per folder whether there is enough data to calibrate safely (both classes need at least
 `min_samples_per_class_for_calibration` examples, 20 by default), and `is_calibrated(model)` tells you which kind
