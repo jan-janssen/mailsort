@@ -1,0 +1,12 @@
+channels:
+- conda-forge
+dependencies:
+  - nbsphinx
+  - sphinx
+  - myst-parser
+  - numpy
+  - pandas
+  - python
+  - scikit-learn
+  - sqlalchemy
+  - tqdm
