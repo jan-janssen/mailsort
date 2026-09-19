@@ -6,10 +6,9 @@ from tqdm import tqdm
 from mailsort.ml import (
     encode_df_for_machine_learning,
     fit_machine_learning_models,
-    get_predictions_from_machine_learning_models,
     score_messages_with_machine_learning_models,
 )
-from mailsort.results import SortResult, SyncResult, TrainResult
+from mailsort.results import Prediction, SortResult, SyncResult, TrainResult
 
 
 class AbstractMailBox(ABC):
@@ -91,8 +90,12 @@ class AbstractMailBox(ABC):
         """
         Filter new emails based on machine learning model recommendations.
 
-        This moves messages on the server. To preview what this would do, without moving,
-        deleting or otherwise modifying anything, see get_label_recommendations().
+        This moves messages on the server, but does no inference of its own: it scores messages
+        through get_label_recommendations() - the exact same inference step
+        'mailsort predict'/MailSorter.predict() use - and then moves only the accepted
+        Predictions, so inference and mailbox mutation stay clearly separated in code, not just
+        by convention. To preview what this would do, without moving, deleting or otherwise
+        modifying anything, call get_label_recommendations() directly.
 
         Args:
             label (str): Email label to filter for
@@ -101,27 +104,16 @@ class AbstractMailBox(ABC):
         Returns:
             mailsort.results.SortResult: which messages were actually moved, and to where
         """
-        df_partial = self.download_emails_for_label(label=label)
-        if len(df_partial) == 0:
-            return SortResult(moved_lst=[])
-        model_reload_dict, feature_reload_lst = self._db_ml.load_models()
-        df_partial_features = encode_df_for_machine_learning(
-            df=df_partial,
-            feature_lst=feature_reload_lst,
-            label_lst=list(model_reload_dict.keys()),
-            return_labels=False,
+        prediction_lst = self.get_label_recommendations(
+            label=label,
+            recommendation_ratio=recommendation_ratio,
             label_prefix=label_prefix,
         )
-        df_partial_features = df_partial_features.reindex(
-            sorted(df_partial_features.columns), axis=1
-        )
-        model_recommendation_dict = get_predictions_from_machine_learning_models(
-            df_features=df_partial_features,
-            model_dict=model_reload_dict,
-            recommendation_ratio=recommendation_ratio,
-        )
+        accepted_lst = [
+            prediction for prediction in prediction_lst if prediction.accepted
+        ]
         moved_lst = self._move_emails(
-            move_email_dict=model_recommendation_dict, label_to_ignore=label
+            prediction_lst=accepted_lst, label_to_ignore=label
         )
         return SortResult(moved_lst=moved_lst)
 
@@ -132,33 +124,26 @@ class AbstractMailBox(ABC):
         label_prefix: str = "labels_",
     ):
         """
-        Preview machine learning label recommendations for the messages currently in `label`,
+        Score the messages currently in `label` against the trained machine learning models,
         without moving, deleting, archiving or otherwise modifying anything on the mail server -
-        a read-only dry run of filter_messages_from_server().
+        a read-only dry run of filter_messages_from_server(), and the exact same inference step
+        that method's moves are based on.
 
         This reuses the exact same download and feature-encoding steps as
         filter_messages_from_server(), and the exact same underlying per-label model scores (see
-        mailsort.ml.model.score_messages_with_machine_learning_models), so "threshold_reached"
-        below always agrees with whether filter_messages_from_server() would move that message
-        for real, given the same recommendation_ratio - only the move itself is left out.
+        mailsort.ml.model.score_messages_with_machine_learning_models), so `accepted` below always
+        agrees with whether filter_messages_from_server() would move that message for real, given
+        the same recommendation_ratio - only the move itself is left out.
 
         Args:
             label (str): Email label/folder to fetch and score messages from
-            recommendation_ratio (float): Cutoff ratio (0<r<1) a score must clear for
-                "threshold_reached" to be True - the same cutoff filter_messages_from_server()
-                uses to decide whether to actually move a message
+            recommendation_ratio (float): Cutoff ratio (0<r<1) a score must clear for `accepted`
+                to be True - the same cutoff filter_messages_from_server() uses to decide whether
+                to actually move a message
             label_prefix (str): prefix used to recognise label columns during feature encoding
 
         Returns:
-            list: one dict per message currently in `label`, each with:
-                - "message_id" (str): backend-specific id that uniquely identifies the message
-                - "subject" (str/None): the message subject, if available
-                - "recommended_label" (str/None): the label the model scores highest for this
-                  message, or None if no machine learning model has been trained yet
-                - "score" (float): the model's score for "recommended_label" - the same value
-                  filter_messages_from_server() compares against recommendation_ratio
-                - "threshold_reached" (bool): whether "score" clears recommendation_ratio, i.e.
-                  whether filter_messages_from_server() would move this message for real
+            list[mailsort.results.Prediction]: one Prediction per message currently in `label`
         """
         df_partial = self.download_emails_for_label(label=label)
         if len(df_partial) == 0:
@@ -166,16 +151,18 @@ class AbstractMailBox(ABC):
         model_reload_dict, feature_reload_lst = self._db_ml.load_models()
         if len(model_reload_dict) == 0:
             # No machine learning model has been trained yet (fit_machine_learning_model_to_database()
-            # was never run) - nothing to score against, so every message is reported as
-            # unrecommended rather than encoding features for a model that does not exist.
+            # was never run) - nothing to score against, so every message abstains rather than
+            # encoding features for a model that does not exist.
             return [
-                {
-                    "message_id": message_id,
-                    "subject": subject,
-                    "recommended_label": None,
-                    "score": 0.0,
-                    "threshold_reached": False,
-                }
+                Prediction(
+                    message_id=message_id,
+                    source_folder=label,
+                    recommended_folder=None,
+                    score=0.0,
+                    threshold=recommendation_ratio,
+                    accepted=False,
+                    subject=subject,
+                )
                 for message_id, subject in zip(
                     df_partial["id"], df_partial["subject"], strict=False
                 )
@@ -197,13 +184,15 @@ class AbstractMailBox(ABC):
         )
         subject_by_id = dict(zip(df_partial["id"], df_partial["subject"], strict=False))
         return [
-            {
-                "message_id": entry["email_id"],
-                "subject": subject_by_id.get(entry["email_id"]),
-                "recommended_label": entry["recommended_label"],
-                "score": entry["score"],
-                "threshold_reached": entry["threshold_reached"],
-            }
+            Prediction(
+                message_id=entry["email_id"],
+                source_folder=label,
+                recommended_folder=entry["recommended_label"],
+                score=entry["score"],
+                threshold=recommendation_ratio,
+                accepted=entry["threshold_reached"],
+                subject=subject_by_id.get(entry["email_id"]),
+            )
             for entry in score_lst
         ]
 
@@ -374,23 +363,33 @@ class AbstractMailBox(ABC):
             )
         ]
 
-    def _move_emails(self, move_email_dict, label_to_ignore):
+    def _move_emails(self, prediction_lst, label_to_ignore):
         """
+        Move messages to their recommended folder - the only place inference results (Predictions)
+        are turned into mailbox mutation, so this consumes Predictions rather than scoring
+        anything itself.
+
+        Args:
+            prediction_lst (list[mailsort.results.Prediction]): predictions to act on - callers
+                are expected to have already filtered this to accepted predictions, see
+                filter_messages_from_server()
+            label_to_ignore (str): folder a message must not be "moved" to because it is already
+                there
+
         Returns:
             list[tuple[str, str]]: (message_id, label) pairs actually moved
         """
         label_existing = self._label_dict[label_to_ignore]
         moved_lst = []
-        for message_id, label_add in tqdm(
-            iterable=move_email_dict.items(), desc="Move emails"
-        ):
+        for prediction in tqdm(iterable=prediction_lst, desc="Move emails"):
+            label_add = prediction.recommended_folder
             if label_add is not None and label_add != label_existing:
                 self._modify_message_labels(
-                    message_id=message_id,
+                    message_id=prediction.message_id,
                     label_id_remove_lst=[label_existing],
                     label_id_add_lst=[label_add],
                 )
-                moved_lst.append((message_id, label_add))
+                moved_lst.append((prediction.message_id, label_add))
         return moved_lst
 
     def _store_emails_in_database(self, message_id_lst, email_format=None):

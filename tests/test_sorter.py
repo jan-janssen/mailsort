@@ -71,23 +71,31 @@ class MailSorterTest(TestCase):
         self.assertEqual(result.trained_label_lst, ["Inbox", "Receipts"])
         self.assertEqual(result.model_count, 2)
 
-    def test_predict_wraps_recommendation_dicts_into_predictions(self):
-        self.mailbox.get_label_recommendations.return_value = [
-            {
-                "message_id": "MailSortInbox\x1f1",
-                "subject": "Hello",
-                "recommended_label": "Sorted",
-                "score": 0.95,
-                "threshold_reached": True,
-            },
-            {
-                "message_id": "MailSortInbox\x1f2",
-                "subject": None,
-                "recommended_label": None,
-                "score": 0.0,
-                "threshold_reached": False,
-            },
+    def test_predict_passes_through_the_predictions_from_the_mailbox(self):
+        # get_label_recommendations() already returns list[Prediction] - predict() is a pure
+        # delegation, not a second place that builds Predictions, so this checks identity/
+        # equality of what comes back rather than any wrapping/transformation.
+        prediction_lst = [
+            Prediction(
+                message_id="MailSortInbox\x1f1",
+                source_folder="MailSortInbox",
+                recommended_folder="Sorted",
+                score=0.95,
+                threshold=0.8,
+                accepted=True,
+                subject="Hello",
+            ),
+            Prediction(
+                message_id="MailSortInbox\x1f2",
+                source_folder="MailSortInbox",
+                recommended_folder=None,
+                score=0.0,
+                threshold=0.8,
+                accepted=False,
+                subject=None,
+            ),
         ]
+        self.mailbox.get_label_recommendations.return_value = prediction_lst
 
         predictions = self.sorter.predict(
             "MailSortInbox", recommendation_ratio=0.8, label_prefix="custom_"
@@ -96,25 +104,7 @@ class MailSorterTest(TestCase):
         self.mailbox.get_label_recommendations.assert_called_once_with(
             label="MailSortInbox", recommendation_ratio=0.8, label_prefix="custom_"
         )
-        self.assertEqual(
-            predictions,
-            [
-                Prediction(
-                    message_id="MailSortInbox\x1f1",
-                    subject="Hello",
-                    recommended_label="Sorted",
-                    score=0.95,
-                    threshold_reached=True,
-                ),
-                Prediction(
-                    message_id="MailSortInbox\x1f2",
-                    subject=None,
-                    recommended_label=None,
-                    score=0.0,
-                    threshold_reached=False,
-                ),
-            ],
-        )
+        self.assertIs(predictions, prediction_lst)
 
     def test_predict_never_calls_sort(self):
         self.mailbox.get_label_recommendations.return_value = []

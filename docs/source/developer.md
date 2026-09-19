@@ -173,36 +173,41 @@ with the `(message_id, label)` pairs actually moved (`moved_lst`) and how many t
 `get_label_recommendations()` runs the exact same download and scoring steps as
 `filter_messages_from_server()`, but only returns the result instead of acting on it - it never moves, deletes,
 archives or otherwise modifies anything on the server, so it is safe to call at any time, including before you
-trust the model with your mailbox. It is the method `MailSorter.predict()` above wraps, and returns the same data
-in a lower-level shape - a list of dicts rather than a list of `Prediction` objects:
+trust the model with your mailbox. It is `MailSorter.predict()`'s implementation - `predict()` is a pure
+passthrough to it - so both already return the same `list[Prediction]`:
 ```
-recommendations = imap.get_label_recommendations(
+predictions = imap.get_label_recommendations(
     label="MailSortInbox",
     recommendation_ratio=0.9,
     label_prefix="labels_",
 )
 ```
-`recommendations` is a list with one dict per message currently in `"MailSortInbox"`, each with:
+Each `Prediction` is a frozen, JSON-serializable dataclass - a first-class, side-effect-free representation of one
+classification result - with:
 - `message_id` (`str`) - id that uniquely identifies the message.
-- `subject` (`str`/`None`) - the message subject, if available.
-- `recommended_label` (`str`/`None`) - the folder the model scores highest for this message, or `None` if no
+- `source_folder` (`str`) - the folder the message was fetched and scored from (`"MailSortInbox"` above).
+- `recommended_folder` (`str`/`None`) - the folder the model scores highest for this message, or `None` if no
   machine learning model has been trained yet (run `fit_machine_learning_model_to_database()` first).
-- `score` (`float`) - the model's score for `recommended_label`.
-- `threshold_reached` (`bool`) - whether `score` clears `recommendation_ratio`, i.e. whether
-  `filter_messages_from_server()` would move this particular message for real, given the same
-  `recommendation_ratio`.
+- `score` (`float`) - the model's score for `recommended_folder`.
+- `threshold` (`float`) - the `recommendation_ratio` this prediction was scored against, carried alongside `score`
+  so a `Prediction` is self-contained.
+- `accepted` (`bool`) - whether `score` clears `threshold`, i.e. whether `filter_messages_from_server()` would
+  move this particular message for real, given the same `recommendation_ratio`. An abstained prediction
+  (`accepted=False`) is never acted on.
+- `subject` (`str`/`None`) - the message subject, if available - display metadata, not itself part of the
+  classification.
 
-These are exactly the fields of the `Prediction` objects `MailSorter.predict()` returns, just accessed by key
-(`recommendation["message_id"]`) instead of by attribute (`prediction.message_id`).
+`filter_messages_from_server()` scores messages through this exact same call and then moves only the accepted
+predictions - inference and mailbox mutation are separated in code, not just by convention, so a message can only
+be moved after having gone through `get_label_recommendations()` first. This also means
+`filter_messages_from_server()` inherits `get_label_recommendations()`'s safe handling of an untrained database
+(every message abstains rather than the machine learning pipeline running against zero models).
 
 For example, to only print the messages that would actually be moved:
 ```
-for recommendation in recommendations:
-    if recommendation["threshold_reached"]:
-        print(
-            f"{recommendation['subject']!r} -> {recommendation['recommended_label']} "
-            f"(score {recommendation['score']:.2f})"
-        )
+for prediction in predictions:
+    if prediction.accepted:
+        print(f"{prediction.subject!r} -> {prediction.recommended_folder} (score {prediction.score:.2f})")
 ```
 The command line equivalent is `mailsort predict MailSortInbox` - see [Configuration](configuration).
 
