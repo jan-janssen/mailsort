@@ -35,12 +35,47 @@ def extract_lower_constraint(constraint):
     return None
 
 
+def sanitize_version(version):
+    match = re.match(r"^([0-9A-Za-z.+!_-]+)", version)
+    if match:
+        return match.group(1)
+    return None
+
+
 def parse_conda_dependency(dep):
     match = re.match(r"^([A-Za-z0-9_.-]+)\s*(.*)$", dep.strip())
     if not match:
         return None, None
     name, constraint = match.groups()
-    return name, extract_lower_constraint(constraint)
+    constraint_token = constraint.strip().split()[0] if constraint.strip() else ""
+    lower_constraint = extract_lower_constraint(constraint_token)
+    if not lower_constraint:
+        return name, None
+    operator = ">=" if lower_constraint.startswith(">=") else ">"
+    version = lower_constraint[2:] if operator == ">=" else lower_constraint[1:]
+    sanitized_version = sanitize_version(version=version)
+    if not sanitized_version:
+        return name, None
+    return name, f"{operator}{sanitized_version}"
+
+
+def get_bracket_delta(line):
+    in_single_quote = False
+    in_double_quote = False
+    delta = 0
+    previous = ""
+    for char in line:
+        if char == "'" and not in_double_quote and previous != "\\":
+            in_single_quote = not in_single_quote
+        elif char == '"' and not in_single_quote and previous != "\\":
+            in_double_quote = not in_double_quote
+        elif not in_single_quote and not in_double_quote:
+            if char == "[":
+                delta += 1
+            elif char == "]":
+                delta -= 1
+        previous = char
+    return delta
 
 
 def get_env_versions(env_content):
@@ -96,22 +131,28 @@ def update_dependencies(pyproject_content, version_low_dict, version_high_dict):
     updated_lines = []
     current_section = None
     in_target_list = False
+    bracket_balance = 0
     for line in pyproject_content.splitlines(keepends=True):
         stripped = line.strip()
         if stripped.startswith("[") and stripped.endswith("]"):
             current_section = stripped.strip("[]")
             in_target_list = False
+            bracket_balance = 0
         if current_section in ["build-system", "project"] and (
             "requires = [" in line or "dependencies = [" in line
         ):
             in_target_list = True
+            bracket_balance = get_bracket_delta(line=line)
         if in_target_list:
             for old, new in replacement_dict.items():
                 line = line.replace(f'"{old}"', f'"{new}"').replace(
                     f"'{old}'", f"'{new}'"
                 )
-            if "]" in line:
+            if "requires = [" not in line and "dependencies = [" not in line:
+                bracket_balance += get_bracket_delta(line=line)
+            if bracket_balance <= 0:
                 in_target_list = False
+                bracket_balance = 0
         updated_lines.append(line)
     return "".join(updated_lines)
 

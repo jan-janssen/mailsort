@@ -98,6 +98,20 @@ dependencies:
                 pyproject_content=pyproject, env_content=environment
             )
 
+    def test_conda_build_string_is_ignored(self):
+        pyproject = """
+[project]
+dependencies = ["numpy==2.5.1"]
+"""
+        environment = """
+dependencies:
+- numpy =1.23.5 py310_0
+"""
+        updated = self.release.update_pyproject_for_release(
+            pyproject_content=pyproject, env_content=environment
+        )
+        self.assertIn("numpy>=1.23.5,<=2.5.1", updated)
+
 
 if __name__ == "__main__":
     unittest.main()
