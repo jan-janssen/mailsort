@@ -1,0 +1,116 @@
+# Developer
+To simplify integration into other projects, all the functionality of `mailsort` is available as a plain Python
+module - the command line interface described in [Configuration](configuration) is a thin wrapper around it.
+[gmailsorter](https://github.com/jan-janssen/gmailsorter) builds its Gmail-specific support on top of the same
+shared IMAP and machine learning core.
+
+## Python Interface
+Just install the `mailsort` python package and then import the `Imap` class from the `mailsort` module:
+```
+from mailsort import Imap
+```
+
+### Initialize mailsort
+Create an `imap` object from the `Imap()` class:
+```
+imap = Imap(
+    host="imap.example.com",
+    port=993,
+    username="user@example.com",
+    password="app-password",
+    connection_str="sqlite:///email.db",
+)
+```
+- `host`/`port` are the hostname and port of your IMAP server, typically `993` for `IMAP4_SSL` (the default) or
+  `143` for plain `IMAP4` (set `use_ssl=False` in that case).
+- `username`/`password` are your IMAP account credentials, for example an app password - see
+  [Preparation](preparation).
+- `connection_str` is a connection to an SQL database, provided as an [SQLAlchemy](https://www.sqlalchemy.org/)
+  connection string.
+- `db_user_id` (default `1`) lets multiple accounts share the same database without mixing their data.
+
+The IMAP connection is kept open for the lifetime of the `Imap` object. Call `imap.close()` when you are done with
+it, or use it as a context manager instead:
+```
+with Imap(
+    host="imap.example.com",
+    port=993,
+    username="user@example.com",
+    password="app-password",
+    connection_str="sqlite:///email.db",
+) as imap:
+    imap.update_database(quick=False)
+```
+
+### Sync local database with email account
+To reduce the communication overhead, the emails are stored locally in an SQLite database:
+```
+imap.update_database(quick=False)
+```
+By setting the optional flag `quick` to `True` only new emails are downloaded while changes to existing emails are
+ignored.
+
+### Generate pandas dataframe for emails
+Load all emails from the local database and combine them in a pandas `DataFrame` for further postprocessing:
+```
+df = imap.get_all_emails_in_database()
+```
+
+### Download a specific folder from the email server
+Download emails currently in the folder `"MyFolder"` from the email server:
+```
+df = imap.download_emails_for_label(label="MyFolder")
+```
+In this case the emails are not stored in the local database.
+
+### Train the machine learning model
+Train one machine learning model per folder on the emails currently stored in the local database:
+```
+imap.fit_machine_learning_model_to_database(
+    n_estimators=100,
+    max_features=400,
+    random_state=42,
+    bootstrap=True,
+    include_deleted=False,
+)
+```
+
+### Filter emails using machine learning
+Assign new emails in the folder `"MailSortInbox"` to the folder that best matches them:
+```
+imap.filter_messages_from_server(
+    label="MailSortInbox",
+    recommendation_ratio=0.9,
+    label_prefix="labels_",
+)
+```
+It checks the server for new emails in the given folder, reloads the machine learning models from the local
+database and tries to predict the correct folder for these emails. The `recommendation_ratio` defines the level of
+certainty required to actually move the email, with `0.9` equalling a certainty of 90%.
+
+## The mailsort.api module
+`mailsort.api` re-exports the building blocks (database helpers, the abstract mailbox and message base classes,
+and the machine learning helpers) that a package building its own mailbox integration on top of `mailsort` - such
+as `gmailsorter` - needs, without depending on `mailsort`'s internal module layout directly:
+```
+from mailsort.api import (
+    AbstractMailBox,
+    AbstractMessage,
+    DatabaseInterface,
+    DatabaseTemplate,
+    MachineLearningDatabase,
+    email_date_converter,
+    get_email_database,
+    get_machine_learning_database,
+    strip_html_tags,
+)
+```
+Prefer importing from `mailsort.api` over `mailsort`'s internal modules (`mailsort.base.*`, `mailsort.ml.*`) when
+integrating with `mailsort` from another package, since `mailsort.api` is kept consistent across refactors while
+the internal module layout is not.
+
+## Future directions
+The current machine learning model is limited in precision and memory usage. So there is a great interest to
+replace it with a computationally more efficient model. All suggestions and feedback are welcome. Beyond the
+optimization of the machine learning model and general improvements to the stability of the code base, adding
+built-in scheduling would be a natural next step, though it is currently on hold based on limited resources.
