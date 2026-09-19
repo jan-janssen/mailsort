@@ -4,7 +4,55 @@ module - the command line interface described in [Configuration](configuration) 
 [gmailsorter](https://github.com/jan-janssen/gmailsorter) builds its Gmail-specific support on top of the same
 shared IMAP and machine learning core.
 
-## Python Interface
+## MailSorter - the recommended interface
+`MailSorter` is a small facade over a mailbox backend (such as `Imap`) that exposes the fetch-store-train-predict-
+move loop through the same task-oriented vocabulary as the CLI - `sync`/`train`/`predict`/`sort` - instead of the
+lower-level `update_database()`/`fit_machine_learning_model_to_database()`/`filter_messages_from_server()` methods
+those tasks are built from:
+```python
+from mailsort import Imap, MailSorter
+
+with MailSorter(
+    Imap(
+        host="imap.example.com",
+        port=993,
+        username="user@example.com",
+        password="app-password",
+        connection_str="sqlite:///email.db",
+    )
+) as sorter:
+    sync_result = sorter.sync()
+    train_result = sorter.train()
+    predictions = sorter.predict("MailSortInbox")
+    sort_result = sorter.sort("MailSortInbox")
+```
+- `sync(quick=False, label_lst=None, email_format=None)` - update the local database from the mail server; returns
+  a `SyncResult` with `new_message_count`, `updated_message_count` and `deleted_message_count`.
+- `train(n_estimators=100, max_features=400, random_state=42, bootstrap=True, include_deleted=False, max_workers=None)`
+  - (re-)train one machine learning model per folder on the local database; returns a `TrainResult` with
+  `trained_label_lst` and `model_count`.
+- `predict(folder, recommendation_ratio=0.9, label_prefix="labels_")` - read-only; returns a `list[Prediction]`
+  without moving, deleting or otherwise modifying anything on the server. See "Dry run / recommendation mode"
+  below.
+- `sort(folder, recommendation_ratio=0.9, label_prefix="labels_")` - scores messages exactly as `predict()` does
+  with the same arguments, then moves the ones that clear `recommendation_ratio`; returns a `SortResult` with
+  `moved_lst` and `moved_count`. This is the only `MailSorter` method that changes the mailbox.
+
+`MailSorter` itself is a context manager - entering it returns the `MailSorter`, and exiting it (or calling
+`sorter.close()` directly) closes the wrapped mailbox, exactly like using `Imap` as a context manager directly.
+
+`MailSorter` only calls the public `AbstractMailBox` interface - `close()`, `update_database()`,
+`fit_machine_learning_model_to_database()`, `get_label_recommendations()` and `filter_messages_from_server()` - so
+it works unmodified with any `AbstractMailBox` subclass, not just `Imap`. A package building its own mailbox
+backend on top of `mailsort` (as `gmailsorter` does for Gmail) can wrap that backend in the same `MailSorter`
+without reimplementing it - see "The mailsort.api module" below.
+
+## Low-level interface
+`MailSorter` above is implemented purely in terms of the methods described in this section - `Imap` (and any other
+`AbstractMailBox` subclass) already exposes the full fetch-store-train-predict-move loop directly. They remain
+available for backwards compatibility with existing scripts, and for callers who want finer-grained control than
+`MailSorter` provides.
+
 Just install the `mailsort` python package and then import the `Imap` class from the `mailsort` module:
 ```
 from mailsort import Imap
@@ -48,7 +96,9 @@ To reduce the communication overhead, the emails are stored locally in an SQLite
 imap.update_database(quick=False)
 ```
 By setting the optional flag `quick` to `True` only new emails are downloaded while changes to existing emails are
-ignored.
+ignored. It returns a `SyncResult` (`new_message_count`, `updated_message_count`, `deleted_message_count`) -
+`updated_message_count` and `deleted_message_count` are always `0` when `quick=True`, since that mode skips both
+steps.
 
 ### Generate pandas dataframe for emails
 Load all emails from the local database and combine them in a pandas `DataFrame` for further postprocessing:
@@ -74,9 +124,12 @@ imap.fit_machine_learning_model_to_database(
     include_deleted=False,
 )
 ```
-This is the equivalent of `mailsort sort`/`mailsort predict`'s `Imap` object retraining. If you only need to
-(re-)train from an already-synced local database - the `mailsort train` CLI command's use case - use
-`train_machine_learning_models()` instead, which does not need a mail server connection at all:
+It returns a `TrainResult` with the sorted list of folders a model was trained for (`trained_label_lst`) and how
+many that is (`model_count`).
+
+If you only need to (re-)train from an already-synced local database and do not have an `Imap`/`AbstractMailBox`
+object at hand - the `mailsort train` CLI command's use case - use `train_machine_learning_models()` instead, which
+does not need a mail server connection at all:
 ```python
 from mailsort.api import train_machine_learning_models
 
@@ -113,13 +166,15 @@ imap.filter_messages_from_server(
 ```
 It checks the server for new emails in the given folder, reloads the machine learning models from the local
 database and tries to predict the correct folder for these emails. The `recommendation_ratio` defines the level of
-certainty required to actually move the email, with `0.9` equalling a certainty of 90%.
+certainty required to actually move the email, with `0.9` equalling a certainty of 90%. It returns a `SortResult`
+with the `(message_id, label)` pairs actually moved (`moved_lst`) and how many that is (`moved_count`).
 
 ## Dry run / recommendation mode
 `get_label_recommendations()` runs the exact same download and scoring steps as
 `filter_messages_from_server()`, but only returns the result instead of acting on it - it never moves, deletes,
 archives or otherwise modifies anything on the server, so it is safe to call at any time, including before you
-trust the model with your mailbox:
+trust the model with your mailbox. It is the method `MailSorter.predict()` above wraps, and returns the same data
+in a lower-level shape - a list of dicts rather than a list of `Prediction` objects:
 ```
 recommendations = imap.get_label_recommendations(
     label="MailSortInbox",
@@ -137,6 +192,9 @@ recommendations = imap.get_label_recommendations(
   `filter_messages_from_server()` would move this particular message for real, given the same
   `recommendation_ratio`.
 
+These are exactly the fields of the `Prediction` objects `MailSorter.predict()` returns, just accessed by key
+(`recommendation["message_id"]`) instead of by attribute (`prediction.message_id`).
+
 For example, to only print the messages that would actually be moved:
 ```
 for recommendation in recommendations:
@@ -150,8 +208,9 @@ The command line equivalent is `mailsort predict MailSortInbox` - see [Configura
 
 ## The mailsort.api module
 `mailsort.api` re-exports the building blocks (database helpers, the abstract mailbox and message base classes,
-and the machine learning helpers) that a package building its own mailbox integration on top of `mailsort` - such
-as `gmailsorter` - needs, without depending on `mailsort`'s internal module layout directly:
+the machine learning helpers, `MailSorter` and its result types) that a package building its own mailbox
+integration on top of `mailsort` - such as `gmailsorter` - needs, without depending on `mailsort`'s internal module
+layout directly:
 ```
 from mailsort.api import (
     AbstractMailBox,
@@ -160,6 +219,11 @@ from mailsort.api import (
     DatabaseStatus,
     DatabaseTemplate,
     MachineLearningDatabase,
+    MailSorter,
+    Prediction,
+    SortResult,
+    SyncResult,
+    TrainResult,
     email_date_converter,
     get_database_status,
     get_email_database,
@@ -168,6 +232,10 @@ from mailsort.api import (
     train_machine_learning_models,
 )
 ```
+`MailSorter` and the result types are exported here specifically because they are generic over `AbstractMailBox`:
+a downstream package's own mailbox backend (a `gmailsorter` Gmail backend, for example) is itself an
+`AbstractMailBox` subclass, so it can be wrapped in this same `MailSorter` without any changes.
+
 Prefer importing from `mailsort.api` over `mailsort`'s internal modules (`mailsort.base.*`, `mailsort.ml.*`) when
 integrating with `mailsort` from another package, since `mailsort.api` is kept consistent across refactors while
 the internal module layout is not.

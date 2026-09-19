@@ -84,6 +84,67 @@ mailsort predict some_label --host imap.example.com --username user@example.com 
 ```
 
 ## Python interface
+The recommended way to use `mailsort` from Python is `MailSorter`, a small facade that wraps a
+mailbox backend (such as `Imap`) and exposes the fetch-store-train-predict-move loop through the
+same vocabulary as the CLI:
+```python
+from mailsort import Imap, MailSorter
+
+with MailSorter(
+    Imap(
+        host="imap.example.com",
+        port=993,
+        username="user@example.com",
+        password="...",
+        connection_str="sqlite:///email.db",
+    )
+) as sorter:
+    sorter.sync()
+    sorter.train()
+    predictions = sorter.predict("some_label")
+    sorter.sort("some_label")
+```
+- `sync()` downloads new and changed messages into the local database and returns a `SyncResult`.
+- `train()` (re-)trains the machine learning models on the local database and returns a
+  `TrainResult`.
+- `predict(folder)` is read-only: it downloads and scores the messages currently in `folder` and
+  returns a `list[Prediction]`, without moving, deleting or otherwise modifying anything on the
+  server.
+- `sort(folder)` scores messages the same way as `predict()`, but actually moves the ones whose
+  score clears `recommendation_ratio` (90% by default), and returns a `SortResult`.
+
+`MailSorter` only relies on the public `AbstractMailBox` interface, not on anything IMAP-specific,
+so it works unmodified with any current or future mailbox backend - including a Gmail backend
+built by [gmailsorter](https://github.com/jan-janssen/gmailsorter).
+
+### Dry run / recommendation mode
+`predict()` computes the exact same machine learning recommendations `sort()` would act on, but
+only returns them - it never moves, deletes, archives or otherwise modifies anything on the
+server:
+```python
+for prediction in sorter.predict("some_label"):
+    print(
+        prediction.message_id,
+        prediction.subject,
+        prediction.recommended_label,
+        prediction.score,
+        prediction.threshold_reached,
+    )
+```
+Each `Prediction` has:
+- `message_id` - id that uniquely identifies the message
+- `subject` - the message subject, if available
+- `recommended_label` - the folder the model scores highest for this message, or `None` if no
+  model has been trained yet
+- `score` - the model's score for `recommended_label`
+- `threshold_reached` - whether `score` clears `recommendation_ratio`, i.e. whether `sort()`
+  would move this message for real
+
+### Low-level interface
+`MailSorter` is a thin wrapper around methods `Imap` (an `AbstractMailBox`) already exposes
+directly. They remain available, both for backwards compatibility with existing scripts and for
+callers who want finer-grained control - `MailSorter.sync()`/`train()`/`predict()`/`sort()` above
+are implemented purely in terms of them, so behavior is identical either way:
 ```python
 from mailsort import Imap
 
@@ -98,31 +159,16 @@ imap.update_database(quick=False)
 imap.fit_machine_learning_model_to_database()
 imap.filter_messages_from_server(label="some_label", recommendation_ratio=0.9)
 ```
-
-### Dry run / recommendation mode
-`get_label_recommendations()` computes the same machine learning recommendations as
-`filter_messages_from_server()`, but only returns them - it never moves, deletes, archives or
-otherwise modifies anything on the server:
+`update_database()`, `fit_machine_learning_model_to_database()` and `filter_messages_from_server()`
+return the same `SyncResult`/`TrainResult`/`SortResult` objects as their `MailSorter` counterparts.
+`get_label_recommendations()`, the equivalent of `predict()`, returns a `list[dict]` rather than a
+`list[Prediction]`, unchanged from earlier versions:
 ```python
 for recommendation in imap.get_label_recommendations(
     label="some_label", recommendation_ratio=0.9
 ):
-    print(
-        recommendation["message_id"],
-        recommendation["subject"],
-        recommendation["recommended_label"],
-        recommendation["score"],
-        recommendation["threshold_reached"],
-    )
+    print(recommendation["message_id"], recommendation["recommended_label"])
 ```
-Each entry is a dict with:
-- `message_id` - id that uniquely identifies the message
-- `subject` - the message subject, if available
-- `recommended_label` - the folder the model scores highest for this message, or `None` if no
-  model has been trained yet
-- `score` - the model's score for `recommended_label`
-- `threshold_reached` - whether `score` clears `recommendation_ratio`, i.e. whether
-  `filter_messages_from_server()` would move this message for real
 
 ### Train and inspect the local database without a mail connection
 `train_machine_learning_models()` and `get_database_status()` are the functions behind the
@@ -149,6 +195,11 @@ from mailsort.api import (
     DatabaseStatus,
     DatabaseTemplate,
     MachineLearningDatabase,
+    MailSorter,
+    Prediction,
+    SortResult,
+    SyncResult,
+    TrainResult,
     email_date_converter,
     get_database_status,
     get_email_database,
@@ -157,3 +208,7 @@ from mailsort.api import (
     train_machine_learning_models,
 )
 ```
+`MailSorter` and the `SyncResult`/`TrainResult`/`Prediction`/`SortResult` result types are exported
+here, not just from `mailsort` directly, because they are generic over `AbstractMailBox`: a
+downstream package implementing its own mailbox backend (as `gmailsorter` does for Gmail) can wrap
+its own `AbstractMailBox` subclass in the same `MailSorter` facade without reimplementing it.

@@ -85,13 +85,6 @@ class ImapMailBase(AbstractMailBox):
         with contextlib.suppress(imaplib.IMAP4.error, OSError):
             self._service.logout()
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.close()
-        return False
-
     def _reconnect(self):
         """
         Re-establish the IMAP connection and store it in self._service.
