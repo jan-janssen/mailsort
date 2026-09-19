@@ -12,6 +12,8 @@ from mailsort.base.mail import AbstractMailBox
 from mailsort.base.message import AbstractMessage, email_date_converter, strip_html_tags
 from mailsort.ml import get_machine_learning_database
 from mailsort.ml.database import MachineLearningDatabase
+from mailsort.results import Prediction, SortResult, SyncResult, TrainResult
+from mailsort.sorter import MailSorter
 from mailsort.status import DatabaseStatus, get_database_status
 from mailsort.training import train_machine_learning_models
 
@@ -22,6 +24,11 @@ __all__ = [
     "DatabaseStatus",
     "DatabaseTemplate",
     "MachineLearningDatabase",
+    "MailSorter",
+    "Prediction",
+    "SortResult",
+    "SyncResult",
+    "TrainResult",
     "email_date_converter",
     "get_database_status",
     "get_email_database",

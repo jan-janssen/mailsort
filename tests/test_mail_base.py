@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 
 from mailsort.base.mail import AbstractMailBox
+from mailsort.results import SortResult, SyncResult, TrainResult
 
 
 class _StubMailBox(AbstractMailBox):
@@ -48,6 +49,21 @@ class AbstractMailBoxTest(TestCase):
         mailbox = _StubMailBox()
         self.assertEqual(sorted(mailbox.labels), ["Inbox", "Spam"])
 
+    def test_close_default_implementation_is_a_no_op(self):
+        mailbox = _StubMailBox()
+
+        mailbox.close()  # must not raise, even though _StubMailBox never overrides it
+
+    def test_context_manager_calls_close_and_propagates_exceptions(self):
+        mailbox = _StubMailBox()
+        mailbox.close = MagicMock()
+
+        with self.assertRaises(ValueError), mailbox as entered:
+            self.assertIs(entered, mailbox)
+            raise ValueError("boom")
+
+        mailbox.close.assert_called_once_with()
+
     def test_download_emails_for_label(self):
         mailbox = _StubMailBox()
         mailbox.search_result = ["id1", "id2"]
@@ -73,12 +89,13 @@ class AbstractMailBoxTest(TestCase):
     def test_move_emails_skips_matching_or_none_labels(self):
         mailbox = _StubMailBox()
 
-        mailbox._move_emails(
+        moved_lst = mailbox._move_emails(
             move_email_dict={"id1": None, "id2": "Inbox", "id3": "Spam"},
             label_to_ignore="Inbox",
         )
 
         self.assertEqual(mailbox.modify_calls, [("id3", ["Inbox"], ["Spam"])])
+        self.assertEqual(moved_lst, [("id3", "Spam")])
 
     def test_update_database_marks_missing_as_deleted(self):
         db_email = MagicMock()
@@ -99,12 +116,45 @@ class AbstractMailBoxTest(TestCase):
             }
         }
 
-        mailbox.update_database(quick=False)
+        result = mailbox.update_database(quick=False)
 
         db_email.mark_emails_as_deleted.assert_called_once_with(
             message_id_lst=["deleted"], user_id=1
         )
         db_email.store_dataframe.assert_called_once()
+        self.assertEqual(result, SyncResult(1, 0, 1))
+
+    def test_update_database_quick_skips_relabel_and_delete_counts(self):
+        db_email = MagicMock()
+        db_email.get_labels_to_update.return_value = (["new"], ["updated"], ["deleted"])
+        mailbox = _StubMailBox(database_email=db_email)
+        mailbox.search_result = ["new"]
+        mailbox.message_detail_dict = {
+            "new": {
+                "id": "new",
+                "threads": "t",
+                "labels": [],
+                "to": [],
+                "from": None,
+                "cc": [],
+                "subject": "s",
+                "content": "c",
+                "date": None,
+            }
+        }
+
+        result = mailbox.update_database(quick=True)
+
+        db_email.mark_emails_as_deleted.assert_not_called()
+        db_email.update_labels.assert_not_called()
+        self.assertEqual(result, SyncResult(1, 0, 0))
+
+    def test_update_database_without_email_database_is_a_no_op(self):
+        mailbox = _StubMailBox()
+
+        result = mailbox.update_database(quick=False)
+
+        self.assertEqual(result, SyncResult(0, 0, 0))
 
     @patch("mailsort.base.mail.fit_machine_learning_models")
     @patch("mailsort.base.mail.encode_df_for_machine_learning")
@@ -129,9 +179,13 @@ class AbstractMailBoxTest(TestCase):
         encode_mock.return_value = (features, labels)
         fit_mock.return_value = {"Inbox": MagicMock()}
 
-        mailbox.fit_machine_learning_model_to_database(n_estimators=5, max_features=2)
+        result = mailbox.fit_machine_learning_model_to_database(
+            n_estimators=5, max_features=2
+        )
 
         db_ml.store_models.assert_called_once()
+        self.assertEqual(result, TrainResult(["Inbox"]))
+        self.assertEqual(result.model_count, 1)
 
     @patch("mailsort.base.mail.get_predictions_from_machine_learning_models")
     @patch("mailsort.base.mail.encode_df_for_machine_learning")
@@ -158,9 +212,20 @@ class AbstractMailBoxTest(TestCase):
         encode_mock.return_value = pd.DataFrame({"email_id": ["id1"], "f1": [1]})
         predict_mock.return_value = {"id1": "Sorted"}
 
-        mailbox.filter_messages_from_server(label="Inbox")
+        result = mailbox.filter_messages_from_server(label="Inbox")
 
         self.assertEqual(mailbox.modify_calls, [("id1", ["Inbox"], ["Sorted"])])
+        self.assertEqual(result, SortResult([("id1", "Sorted")]))
+        self.assertEqual(result.moved_count, 1)
+
+    def test_filter_messages_from_server_empty_folder_returns_empty_sort_result(self):
+        mailbox = _StubMailBox()
+        mailbox.search_result = []
+
+        result = mailbox.filter_messages_from_server(label="Inbox")
+
+        self.assertEqual(result, SortResult([]))
+        self.assertEqual(result.moved_count, 0)
 
     def test_get_label_recommendations_returns_empty_list_for_empty_folder(self):
         db_ml = MagicMock()

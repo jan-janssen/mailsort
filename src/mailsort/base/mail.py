@@ -9,6 +9,7 @@ from mailsort.ml import (
     get_predictions_from_machine_learning_models,
     score_messages_with_machine_learning_models,
 )
+from mailsort.results import SortResult, SyncResult, TrainResult
 
 
 class AbstractMailBox(ABC):
@@ -42,6 +43,24 @@ class AbstractMailBox(ABC):
         self._email_download_format = email_download_format
         self._label_dict = self._get_label_translate_dict()
         self._label_dict_inverse = {v: k for k, v in self._label_dict.items()}
+
+    def close(self) -> None:  # noqa: B027
+        """
+        Release any resources held by this mailbox backend.
+
+        The default implementation is intentionally a no-op, not abstract; override it in
+        backends that hold an open connection (see mailsort.imap.mail.ImapMailBase.close() for
+        the IMAP backend's override). Promoting this - and the context manager support below -
+        to AbstractMailBox lets any backend, existing or future, be used as `with mailbox: ...`
+        or wrapped in mailsort.MailSorter without backend-specific handling.
+        """
+
+    def __enter__(self) -> "AbstractMailBox":
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> bool:
+        self.close()
+        return False
 
     @property
     def labels(self):
@@ -78,28 +97,33 @@ class AbstractMailBox(ABC):
         Args:
             label (str): Email label to filter for
             recommendation_ratio (float): Only accept recommendation above this ratio (0<r<1)
+
+        Returns:
+            mailsort.results.SortResult: which messages were actually moved, and to where
         """
         df_partial = self.download_emails_for_label(label=label)
-        if len(df_partial) > 0:
-            model_reload_dict, feature_reload_lst = self._db_ml.load_models()
-            df_partial_features = encode_df_for_machine_learning(
-                df=df_partial,
-                feature_lst=feature_reload_lst,
-                label_lst=list(model_reload_dict.keys()),
-                return_labels=False,
-                label_prefix=label_prefix,
-            )
-            df_partial_features = df_partial_features.reindex(
-                sorted(df_partial_features.columns), axis=1
-            )
-            model_recommendation_dict = get_predictions_from_machine_learning_models(
-                df_features=df_partial_features,
-                model_dict=model_reload_dict,
-                recommendation_ratio=recommendation_ratio,
-            )
-            self._move_emails(
-                move_email_dict=model_recommendation_dict, label_to_ignore=label
-            )
+        if len(df_partial) == 0:
+            return SortResult(moved_lst=[])
+        model_reload_dict, feature_reload_lst = self._db_ml.load_models()
+        df_partial_features = encode_df_for_machine_learning(
+            df=df_partial,
+            feature_lst=feature_reload_lst,
+            label_lst=list(model_reload_dict.keys()),
+            return_labels=False,
+            label_prefix=label_prefix,
+        )
+        df_partial_features = df_partial_features.reindex(
+            sorted(df_partial_features.columns), axis=1
+        )
+        model_recommendation_dict = get_predictions_from_machine_learning_models(
+            df_features=df_partial_features,
+            model_dict=model_reload_dict,
+            recommendation_ratio=recommendation_ratio,
+        )
+        moved_lst = self._move_emails(
+            move_email_dict=model_recommendation_dict, label_to_ignore=label
+        )
+        return SortResult(moved_lst=moved_lst)
 
     def get_label_recommendations(
         self,
@@ -204,6 +228,9 @@ class AbstractMailBox(ABC):
                                  used to build each tree. (default: true)
             include_deleted (bool): Flag to include deleted emails - default False
             max_workers (int): maximum number of workers for the machine learning models
+
+        Returns:
+            mailsort.results.TrainResult: the folders/labels a model was trained for
         """
         df_all = self.get_all_emails_in_database(include_deleted=include_deleted)
         df_all_features, df_all_labels = encode_df_for_machine_learning(
@@ -230,6 +257,7 @@ class AbstractMailBox(ABC):
             user_id=self._db_user_id,
             commit=True,
         )
+        return TrainResult(trained_label_lst=sorted(model_dict.keys()))
 
     def get_all_emails_in_database(self, include_deleted=False):
         """
@@ -253,34 +281,51 @@ class AbstractMailBox(ABC):
             quick (boolean): Only add new emails, do not update existing labels - by default: False
             label_lst (list): list of labels to be searched
             email_format (str/None): Email format to download
+
+        Returns:
+            mailsort.results.SyncResult: counts of messages newly stored, relabeled and marked
+                deleted by this call - relabeling and deletion counts are always 0 when
+                quick=True, since that mode skips both steps
         """
         if label_lst is None:
             label_lst = []
-        if self._db_email is not None:
-            message_id_lst = self._search_email_on_server(
-                label_lst=label_lst, only_message_ids=True
+        if self._db_email is None:
+            return SyncResult(
+                new_message_count=0, updated_message_count=0, deleted_message_count=0
             )
-            (
-                new_messages_lst,
-                message_label_updates_lst,
-                deleted_messages_lst,
-            ) = self._db_email.get_labels_to_update(
-                message_id_lst=message_id_lst, user_id=self._db_user_id
+        message_id_lst = self._search_email_on_server(
+            label_lst=label_lst, only_message_ids=True
+        )
+        (
+            new_messages_lst,
+            message_label_updates_lst,
+            deleted_messages_lst,
+        ) = self._db_email.get_labels_to_update(
+            message_id_lst=message_id_lst, user_id=self._db_user_id
+        )
+        updated_message_count = 0
+        deleted_message_count = 0
+        if not quick:
+            self._db_email.mark_emails_as_deleted(
+                message_id_lst=deleted_messages_lst, user_id=self._db_user_id
             )
-            if not quick:
-                self._db_email.mark_emails_as_deleted(
-                    message_id_lst=deleted_messages_lst, user_id=self._db_user_id
-                )
-                self._db_email.update_labels(
-                    message_id_lst=message_label_updates_lst,
-                    message_meta_lst=self._get_labels_for_emails(
-                        message_id_lst=message_label_updates_lst
-                    ),
-                    user_id=self._db_user_id,
-                )
-            self._store_emails_in_database(
-                message_id_lst=new_messages_lst, email_format=email_format
+            self._db_email.update_labels(
+                message_id_lst=message_label_updates_lst,
+                message_meta_lst=self._get_labels_for_emails(
+                    message_id_lst=message_label_updates_lst
+                ),
+                user_id=self._db_user_id,
             )
+            updated_message_count = len(message_label_updates_lst)
+            deleted_message_count = len(deleted_messages_lst)
+        self._store_emails_in_database(
+            message_id_lst=new_messages_lst, email_format=email_format
+        )
+        return SyncResult(
+            new_message_count=len(new_messages_lst),
+            updated_message_count=updated_message_count,
+            deleted_message_count=deleted_message_count,
+        )
 
     def _download_messages_to_dataframe(self, message_id_lst, email_format=None):
         """
@@ -330,7 +375,12 @@ class AbstractMailBox(ABC):
         ]
 
     def _move_emails(self, move_email_dict, label_to_ignore):
+        """
+        Returns:
+            list[tuple[str, str]]: (message_id, label) pairs actually moved
+        """
         label_existing = self._label_dict[label_to_ignore]
+        moved_lst = []
         for message_id, label_add in tqdm(
             iterable=move_email_dict.items(), desc="Move emails"
         ):
@@ -340,6 +390,8 @@ class AbstractMailBox(ABC):
                     label_id_remove_lst=[label_existing],
                     label_id_add_lst=[label_add],
                 )
+                moved_lst.append((message_id, label_add))
+        return moved_lst
 
     def _store_emails_in_database(self, message_id_lst, email_format=None):
         df = self._download_messages_to_dataframe(
