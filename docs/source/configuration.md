@@ -11,8 +11,8 @@ pip install mailsort
 ```
 
 ## Command line interface
-Once installed, `mailsort` is also available as a command line tool, built around five subcommands: `sync`,
-`train`, `predict`, `sort` and `status`.
+Once installed, `mailsort` is also available as a command line tool, built around six subcommands: `sync`,
+`train`, `predict`, `sort`, `status` and `evaluate`.
 
 First, download your existing folders into the local database:
 ```
@@ -35,6 +35,13 @@ To check what `mailsort` currently knows - where the database lives, how many me
 many per-folder models have been trained:
 ```
 mailsort status -d sqlite:///email.db
+```
+
+Before trusting `mailsort sort` to move mail automatically, check how well it is likely to do that on your own
+data - `recommendation_ratio` (used by `predict`/`sort` below) is a threshold on a model score, not a guaranteed
+error rate, see [Evaluation and confidence](evaluation):
+```
+mailsort evaluate -d sqlite:///email.db
 ```
 
 Run `mailsort --help` for the full list of top-level options, or `mailsort <command> --help` (e.g.
@@ -63,7 +70,9 @@ end up in your shell history in plain text.
   the sync to specific folders instead of every folder.
 - `mailsort train` (re-)trains one machine learning model per folder on the messages already stored in the local
   database. It never connects to the mail server. Add `--include-deleted` to also train on messages marked as
-  deleted.
+  deleted, or `--no-calibration` to keep every folder's raw classifier score even where there would be enough data
+  to calibrate it (see [Evaluation and confidence](evaluation) - calibration is applied automatically per folder
+  where there is enough data, this only turns it off entirely).
 - `mailsort predict FOLDER` downloads the messages currently in `FOLDER` and reports the model's recommendation
   for each, without moving, deleting or otherwise modifying anything on the server - see "Dry run / recommendation
   mode" below.
@@ -71,9 +80,17 @@ end up in your shell history in plain text.
   `--recommendation-ratio` to the recommended folder.
 - `mailsort status` reports the database location, the number of known messages (and how many of those are marked
   deleted), and the folders a model has been trained for. It never connects to the mail server.
+- `mailsort evaluate` estimates precision, recall, F1, support and coverage/abstention rate at
+  `--recommendation-ratio` on held-out data, so a threshold choice is evidence-based rather than assumed - see
+  [Evaluation and confidence](evaluation) for the full explanation. It never connects to the mail server, and never
+  changes the models `mailsort train` has already stored. Accepts `--test-size` (fraction of email threads held
+  out for testing, default `0.25`), `--no-calibration`, and `--sweep` to compare several thresholds
+  (`0.5`/`0.7`/`0.8`/`0.9`/`0.95`/`0.99`) at once instead of reporting a single one.
 
 `predict` and `sort` additionally accept:
-- `--recommendation-ratio` certainty a score must clear to count as a recommendation (`0<r<1`) - default: `0.9`.
+- `--recommendation-ratio` cutoff a score must clear to count as a recommendation (`0<r<1`) - default: `0.9`. This
+  is a threshold on a model score, not a guaranteed probability of being correct - see
+  [Evaluation and confidence](evaluation).
 - `--label-prefix` prefix used to recognise label columns during feature encoding - only needs to change if you
   customised this in the Python API - default: `labels_`.
 
@@ -99,24 +116,25 @@ mailsort predict MailSortInbox --host imap.example.com --username user@example.c
 ```
 
 ## Dry run / recommendation mode
-Before letting `mailsort` move emails automatically, or when you simply want to check how confident the model is
-about a folder without touching your mailbox, use `mailsort predict` instead of `mailsort sort`:
+Before letting `mailsort` move emails automatically, or when you simply want to see what the model would do with a
+folder without touching your mailbox, use `mailsort predict` instead of `mailsort sort`:
 ```
 mailsort predict MailSortInbox --host imap.example.com --username user@example.com --password "..." -d sqlite:///email.db
 ```
 This downloads and scores the messages in `MailSortInbox` exactly as `mailsort sort` would, and prints the result
 as a table - but it never moves, deletes, archives or otherwise modifies anything on the server:
 ```
-MESSAGE ID                           SUBJECT                                  RECOMMENDED FOLDER    SCORE ACCEPTED
-------------------------------------------------------------------------------------------------------------------
-MailSortInbox\x1f101                  Your invoice for March                   Receipts               1.00     True
-MailSortInbox\x1f102                  Let's catch up next week                 -                      0.00    False
+MESSAGE ID                           SUBJECT                                  RECOMMENDED FOLDER    SCORE TYPE       ACCEPTED
+-----------------------------------------------------------------------------------------------------------------------------
+MailSortInbox\x1f101                  Your invoice for March                   Receipts               0.97 calibrated     True
+MailSortInbox\x1f102                  Let's catch up next week                 -                      0.00 raw           False
 ```
 Each row shows one message currently in the folder: its id, its subject, the folder the model would move it to,
-the model's score for that folder, and whether that score clears `--recommendation-ratio` (90% by default) - i.e.
-whether running `mailsort sort` on the same folder would actually move that message. A `-` in the recommended
-folder column means either no folder scored high enough, or no machine learning model has been trained yet (run
-`mailsort train` first).
+the model's score for that folder, whether that score is a calibrated probability or a raw, uncalibrated
+classifier score (`TYPE` - see [Evaluation and confidence](evaluation)), and whether the score clears
+`--recommendation-ratio` (90% by default) - i.e. whether running `mailsort sort` on the same folder would actually
+move that message. A `-` in the recommended folder column means either no folder scored high enough, or no machine
+learning model has been trained yet (run `mailsort train` first).
 
 ## Python interface
 To integrate `mailsort` into your own scripts, or to build additional functionality on top of it (as

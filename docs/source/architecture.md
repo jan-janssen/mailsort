@@ -58,20 +58,25 @@ folders tend to go together?". In practice this captures the intuition most peop
 sender, the mailing list or the group of people involved - rather than trying to summarize free text.
 
 The trained models are serialized and stored back in your local database, together with the exact list of columns
-they were trained on, so they can be reloaded without retraining every time.
+they were trained on, so they can be reloaded without retraining every time. Where a folder has enough training
+examples, its model's scores are also calibrated (rescaled against held-out data so a score more honestly reflects
+how often it is actually right) rather than used raw - see [Evaluation and confidence](evaluation) for what that
+means and why it only happens when there is enough data to do it safely.
 
 ### 4. Predict
 When a new email lands in your sorting inbox folder, `mailsort` encodes it using the very same columns the models
-were trained on and asks every stored model "how confident are you that this email belongs to your folder?". The
-folder with the highest confidence wins, but only if that confidence clears the `recommendation_ratio` threshold
-(90% by default). If no folder is confident enough, the email is simply left where it is until the next run, once
-more training data has made the models more confident.
+were trained on and asks every stored model for a score for that email. The folder with the highest score wins, but
+only if that score clears the `recommendation_ratio` threshold (90% by default) - `recommendation_ratio` is a
+cutoff on a model score, not a guaranteed error rate; see [Evaluation and confidence](evaluation) for why, and for
+how to check what a given threshold actually achieves on your own mailbox before trusting it. If no folder's score
+is high enough, the email is simply left where it is until the next run, once more training data has raised the
+models' scores.
 
 ### 5. Move
-If a folder was recommended with sufficient confidence, `mailsort` issues an IMAP command to move the email out of
-the sorting inbox folder and into the recommended folder - the same action you would take by hand by dragging the
-email into a folder. Nothing is deleted or archived silently; the email simply moves to the folder you would have
-put it in yourself.
+If a folder was recommended with a score above the threshold, `mailsort` issues an IMAP command to move the email
+out of the sorting inbox folder and into the recommended folder - the same action you would take by hand by
+dragging the email into a folder. Nothing is deleted or archived silently; the email simply moves to the folder you
+would have put it in yourself.
 
 To avoid ever recommending a folder you would not want emails moved into automatically, `mailsort` skips folders
 marked with `\Noselect`, and special-use folders such as Trash, Spam/Junk, Sent and Drafts, both when training and
@@ -100,8 +105,11 @@ file on your own machine. Nothing is shared with any third party.
 
 ## Limitations to be aware of
 * The model only learns from folders you already filed emails into by hand, so a brand-new folder with very few
-  emails behind it will rarely reach the 90% confidence needed to be suggested - this is intentional, to avoid
-  confidently wrong guesses, but it does mean new folders take a little time to "warm up".
+  emails behind it will rarely reach the score needed to be suggested - this is intentional, to avoid confidently
+  wrong guesses, but it does mean new folders take a little time to "warm up". It also means that folder's model
+  is not calibrated yet - see [Evaluation and confidence](evaluation).
 * Because the model deliberately ignores email body text, two emails with very similar content but no overlapping
   sender, recipients or thread will not be linked by `mailsort` today. See
   [Developer - Future directions](developer) for the direction this may take next.
+* A model score, calibrated or not, is not a guarantee - see [Evaluation and confidence](evaluation) for what it
+  actually means and how to check it against your own data with `mailsort evaluate` before trusting a threshold.

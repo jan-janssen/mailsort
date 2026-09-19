@@ -8,6 +8,26 @@ callers do not need backend-specific handling.
 """
 
 from dataclasses import dataclass
+from enum import Enum
+
+
+class ScoreType(str, Enum):
+    """
+    Whether a :class:`Prediction`'s score is a calibrated probability or a raw, uncalibrated
+    classifier score - see :mod:`mailsort.ml.calibration` for what that distinction means and
+    when each applies. A ``str`` subclass, so it serializes to plain text (e.g. in JSON) rather
+    than an opaque enum repr.
+    """
+
+    #: `score` is the positive-class probability from a scikit-learn
+    #: ``RandomForestClassifier``, uncorrected - it is a useful ranking signal, but should not be
+    #: read as "X% of messages scored X actually belong here". See mailsort.ml.calibration.
+    RAW = "raw"
+
+    #: `score` has been rescaled against held-out data (Platt scaling / sigmoid calibration) so
+    #: that it approximates a true probability - still an estimate, not a guarantee, but a
+    #: meaningfully different, better-justified one than RAW. See mailsort.ml.calibration.
+    CALIBRATED = "calibrated"
 
 
 @dataclass(frozen=True)
@@ -82,6 +102,9 @@ class Prediction:
             filter_messages_from_server()/MailSorter.sort() would move this message for real,
             given the same recommendation_ratio - an abstained prediction (accepted=False) is
             never acted on
+        score_type (ScoreType): whether `score` is a calibrated probability or a raw,
+            uncalibrated classifier score - always explicit, so a caller never has to guess (or
+            assume) which one they are looking at. See mailsort.ml.calibration.
         subject (str/None): the message subject, if available - display metadata for humans
             (CLI/logging), not itself part of the classification
     """
@@ -92,6 +115,7 @@ class Prediction:
     score: float
     threshold: float
     accepted: bool
+    score_type: ScoreType
     subject: str | None = None
 
 

@@ -13,6 +13,10 @@ from __future__ import annotations
 from types import TracebackType
 
 from mailsort.base.mail import AbstractMailBox
+from mailsort.ml import (
+    DEFAULT_MAX_CALIBRATION_CV_FOLDS,
+    DEFAULT_MIN_SAMPLES_PER_CLASS_FOR_CALIBRATION,
+)
 from mailsort.results import Prediction, SortResult, SyncResult, TrainResult
 
 
@@ -96,6 +100,9 @@ class MailSorter:
         bootstrap: bool = True,
         include_deleted: bool = False,
         max_workers: int | None = None,
+        calibrate: bool = True,
+        min_samples_per_class_for_calibration: int = DEFAULT_MIN_SAMPLES_PER_CLASS_FOR_CALIBRATION,
+        max_calibration_cv_folds: int = DEFAULT_MAX_CALIBRATION_CV_FOLDS,
     ) -> TrainResult:
         """
         (Re-)train one machine learning model per folder on the messages in the local database -
@@ -108,6 +115,13 @@ class MailSorter:
             bootstrap: whether bootstrap samples are used when building trees
             include_deleted: include messages marked as deleted - default: False
             max_workers: maximum number of worker processes to train models in parallel
+            calibrate: calibrate each folder's classifier when there is enough data to do so
+                safely - default: True. See mailsort.ml.calibration for what this means and why
+                it is conditional rather than automatic; see mailsort.ml.evaluation to check
+                whether the resulting scores behave the way you expect on your own data.
+            min_samples_per_class_for_calibration: see
+                mailsort.ml.calibration.should_calibrate()
+            max_calibration_cv_folds: see mailsort.ml.calibration.calibration_cv_folds()
 
         Returns:
             TrainResult: the folders a model was trained for
@@ -119,6 +133,9 @@ class MailSorter:
             bootstrap=bootstrap,
             include_deleted=include_deleted,
             max_workers=max_workers,
+            calibrate=calibrate,
+            min_samples_per_class_for_calibration=min_samples_per_class_for_calibration,
+            max_calibration_cv_folds=max_calibration_cv_folds,
         )
 
     def predict(
@@ -137,9 +154,11 @@ class MailSorter:
 
         Args:
             folder: mail folder to fetch and score messages from
-            recommendation_ratio: certainty a score must clear for `accepted` to be True on the
+            recommendation_ratio: cutoff a score must clear for `accepted` to be True on the
                 matching Prediction - the same cutoff sort() uses to decide whether to actually
-                move a message (0<r<1)
+                move a message (0<r<1). A threshold on a model score, not a guaranteed
+                probability of being correct - see mailsort.ml.evaluation to check what a given
+                threshold achieves on your own data.
             label_prefix: prefix used to recognise label columns during feature encoding
 
         Returns:
@@ -167,7 +186,9 @@ class MailSorter:
 
         Args:
             folder: mail folder to fetch, score and sort messages from
-            recommendation_ratio: certainty a score must clear to actually move a message (0<r<1)
+            recommendation_ratio: cutoff a score must clear to actually move a message (0<r<1) -
+                see predict() and mailsort.ml.evaluation for what this cutoff does and does not
+                guarantee
             label_prefix: prefix used to recognise label columns during feature encoding
 
         Returns:

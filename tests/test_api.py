@@ -5,9 +5,10 @@ from mailsort.base import get_email_database
 from mailsort.base.database import DatabaseInterface, DatabaseTemplate
 from mailsort.base.mail import AbstractMailBox
 from mailsort.base.message import AbstractMessage, email_date_converter, strip_html_tags
+from mailsort.evaluation import EvaluationReport, FolderMetrics, evaluate_models
 from mailsort.ml import get_machine_learning_database
 from mailsort.ml.database import MachineLearningDatabase
-from mailsort.results import Prediction, SortResult, SyncResult, TrainResult
+from mailsort.results import Prediction, ScoreType, SortResult, SyncResult, TrainResult
 from mailsort.sorter import MailSorter
 from mailsort.status import DatabaseStatus, get_database_status
 from mailsort.training import train_machine_learning_models
@@ -35,9 +36,13 @@ class ApiTest(TestCase):
         self.assertIs(api.train_machine_learning_models, train_machine_learning_models)
         self.assertIs(api.MailSorter, MailSorter)
         self.assertIs(api.Prediction, Prediction)
+        self.assertIs(api.ScoreType, ScoreType)
         self.assertIs(api.SortResult, SortResult)
         self.assertIs(api.SyncResult, SyncResult)
         self.assertIs(api.TrainResult, TrainResult)
+        self.assertIs(api.EvaluationReport, EvaluationReport)
+        self.assertIs(api.FolderMetrics, FolderMetrics)
+        self.assertIs(api.evaluate_models, evaluate_models)
 
     def test_all_matches_exported_names(self):
         self.assertEqual(
@@ -48,13 +53,17 @@ class ApiTest(TestCase):
                 "DatabaseInterface",
                 "DatabaseStatus",
                 "DatabaseTemplate",
+                "EvaluationReport",
+                "FolderMetrics",
                 "MachineLearningDatabase",
                 "MailSorter",
                 "Prediction",
+                "ScoreType",
                 "SortResult",
                 "SyncResult",
                 "TrainResult",
                 "email_date_converter",
+                "evaluate_models",
                 "get_database_status",
                 "get_email_database",
                 "get_machine_learning_database",

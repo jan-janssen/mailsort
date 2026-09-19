@@ -2,13 +2,18 @@
 Command line interface for mailsort.
 
 This module only parses arguments and formats output - the actual work is done by
-mailsort.Imap and the reusable functions in mailsort.training / mailsort.status.
+mailsort.Imap and the reusable functions in mailsort.training / mailsort.status / mailsort.evaluation.
 """
 
 import argparse
 import sys
 
 from mailsort import Imap
+from mailsort.evaluation import (
+    evaluate_at_threshold,
+    evaluate_thresholds,
+    score_holdout,
+)
 from mailsort.status import get_database_status
 from mailsort.training import train_machine_learning_models
 
@@ -46,7 +51,7 @@ def _format_recommendations_table(predictions):
         f"{'MESSAGE ID':<{widths['message_id']}} "
         f"{'SUBJECT':<{widths['subject']}} "
         f"{'RECOMMENDED FOLDER':<{widths['recommended_folder']}} "
-        f"{'SCORE':>6} {'ACCEPTED':>8}"
+        f"{'SCORE':>6} {'TYPE':<10} {'ACCEPTED':>8}"
     )
     lines = [header, "-" * len(header)]
     for prediction in predictions:
@@ -59,7 +64,8 @@ def _format_recommendations_table(predictions):
             f"{message_id:<{widths['message_id']}} "
             f"{subject:<{widths['subject']}} "
             f"{recommended_folder:<{widths['recommended_folder']}} "
-            f"{prediction.score:>6.2f} {str(prediction.accepted):>8}"
+            f"{prediction.score:>6.2f} {prediction.score_type.value:<10} "
+            f"{str(prediction.accepted):>8}"
         )
     return "\n".join(lines)
 
@@ -81,6 +87,77 @@ def _format_status_table(status):
             f"Machine learning features stored: {status.feature_count}",
         ]
     )
+
+
+def _format_ratio(value):
+    return "n/a" if value is None else f"{value:.2f}"
+
+
+def _format_evaluation_report(report):
+    """
+    Render a mailsort.ml.evaluation.EvaluationReport as human-readable text for the command line.
+    """
+    lines = [
+        f"Evaluation at recommendation-ratio={report.recommendation_ratio:.2f} "
+        f"(held-out, thread-grouped split - see 'mailsort evaluate --help')",
+        f"Train messages: {report.train_message_count}   "
+        f"Test messages: {report.test_message_count}   "
+        f"Excluded (no trained folder in common): {report.excluded_message_count}",
+        f"Coverage: {report.accepted_count}/{report.test_message_count} accepted "
+        f"({report.coverage:.1%})   "
+        f"Overall precision among accepted: {report.accepted_correct_count}/"
+        f"{report.accepted_count} ({_format_ratio(report.overall_precision)})",
+        "",
+    ]
+    widths = {"folder": 20, "num": 8}
+    header = (
+        f"{'FOLDER':<{widths['folder']}} {'SUPPORT':>{widths['num']}} "
+        f"{'PRECISION':>{widths['num']}} {'RECALL':>{widths['num']}} {'F1':>{widths['num']}} "
+        f"{'TP':>{widths['num']}} {'FP':>{widths['num']}} {'MISROUTED':>{widths['num']}} "
+        f"{'ABSTAINED':>{widths['num']}} {'MODEL':>{widths['num']}}"
+    )
+    lines.append(header)
+    lines.append("-" * len(header))
+    for fm in report.folder_metrics:
+        model = "calibrated" if report.calibration_status.get(fm.folder) else "raw"
+        lines.append(
+            f"{fm.folder:<{widths['folder']}} {fm.support:>{widths['num']}} "
+            f"{_format_ratio(fm.precision):>{widths['num']}} "
+            f"{fm.recall:>{widths['num']}.2f} {_format_ratio(fm.f1):>{widths['num']}} "
+            f"{fm.true_positive:>{widths['num']}} {fm.false_positive:>{widths['num']}} "
+            f"{fm.misrouted:>{widths['num']}} {fm.abstained:>{widths['num']}} "
+            f"{model:>{widths['num']}}"
+        )
+    if report.confusion:
+        lines.append("")
+        lines.append("Confusion (true folder -> recommended folder, accepted only):")
+        for true_folder in sorted(report.confusion):
+            for recommended_folder, count in sorted(
+                report.confusion[true_folder].items()
+            ):
+                lines.append(f"  {true_folder} -> {recommended_folder}: {count}")
+    return "\n".join(lines)
+
+
+def _format_evaluation_sweep(reports):
+    """
+    Render several mailsort.ml.evaluation.EvaluationReport instances (see
+    mailsort.ml.evaluation.evaluate_thresholds) as a single comparison table.
+    """
+    first = reports[0]
+    lines = [
+        f"Coverage/precision by recommendation-ratio "
+        f"(train: {first.train_message_count}, test: {first.test_message_count}, "
+        f"excluded: {first.excluded_message_count})",
+        f"{'RATIO':>6} {'COVERAGE':>9} {'ACCEPTED':>9} {'OVERALL PRECISION':>18}",
+    ]
+    for report in reports:
+        lines.append(
+            f"{report.recommendation_ratio:>6.2f} {report.coverage:>9.1%} "
+            f"{report.accepted_count:>9} "
+            f"{_format_ratio(report.overall_precision):>18}"
+        )
+    return "\n".join(lines)
 
 
 def _add_connection_arguments(parser, suppress_defaults=False):
@@ -179,6 +256,9 @@ examples:
   # inspect the local database
   mailsort status
 
+  # check precision/coverage at a few thresholds before trusting one
+  mailsort evaluate --sweep
+
 Run `mailsort <command> --help` for the arguments of an individual command.
 """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -210,7 +290,7 @@ Run `mailsort <command> --help` for the arguments of an individual command.
     )
 
     subparsers = parser.add_subparsers(
-        dest="command", metavar="{sync,train,predict,sort,status}"
+        dest="command", metavar="{sync,train,predict,sort,status,evaluate}"
     )
 
     sync_parser = subparsers.add_parser(
@@ -249,6 +329,13 @@ Run `mailsort <command> --help` for the arguments of an individual command.
         "--include-deleted",
         action="store_true",
         help="Include emails marked as deleted when training.",
+    )
+    train_parser.add_argument(
+        "--no-calibration",
+        action="store_true",
+        help="Skip probability calibration and keep raw classifier scores even where there is "
+        "enough data to calibrate. Calibration is applied automatically per folder where there "
+        "is enough data (see 'mailsort evaluate'); this only turns it off entirely.",
     )
 
     predict_parser = subparsers.add_parser(
@@ -293,6 +380,45 @@ Run `mailsort <command> --help` for the arguments of an individual command.
     )
     _add_database_argument(status_parser, suppress_defaults=True)
     _add_identification_argument(status_parser, suppress_defaults=True)
+
+    evaluate_parser = subparsers.add_parser(
+        "evaluate",
+        help="Estimate precision/recall/coverage for a recommendation-ratio, on held-out data.",
+        description="Train a separate, throwaway set of per-folder models on part of the local "
+        "database and score them against the rest, to estimate precision, recall, F1, support "
+        "and coverage/abstention rate at --recommendation-ratio - the evidence a "
+        "recommendation-ratio choice should be based on, rather than treating "
+        "recommendation-ratio as if it were already a calibrated probability. Does not connect "
+        "to the mail server, and never changes the models 'mailsort train' has already stored.",
+    )
+    _add_database_argument(evaluate_parser, suppress_defaults=True)
+    _add_identification_argument(evaluate_parser, suppress_defaults=True)
+    evaluate_parser.add_argument(
+        "--recommendation-ratio",
+        type=float,
+        default=_DEFAULT_RECOMMENDATION_RATIO,
+        help="Cutoff a score must clear to count as accepted (0<r<1) - default: "
+        f"{_DEFAULT_RECOMMENDATION_RATIO} . Ignored when --sweep is given.",
+    )
+    evaluate_parser.add_argument(
+        "--test-size",
+        type=float,
+        default=0.25,
+        help="Fraction of email threads held out for testing rather than training "
+        "(0<test_size<1) - default: 0.25 .",
+    )
+    evaluate_parser.add_argument(
+        "--no-calibration",
+        action="store_true",
+        help="Evaluate with calibration turned off, to compare against the default.",
+    )
+    evaluate_parser.add_argument(
+        "--sweep",
+        action="store_true",
+        help="Report coverage and precision at several recommendation-ratio values "
+        "(0.5, 0.7, 0.8, 0.9, 0.95, 0.99) instead of a single detailed report, to help pick a "
+        "threshold.",
+    )
 
     return parser
 
@@ -358,6 +484,7 @@ def _run_train(args, database, db_user_id):
         connection_str=database,
         db_user_id=db_user_id,
         include_deleted=args.include_deleted,
+        calibrate=not args.no_calibration,
     )
     print(f"Trained {model_count} folder model(s) and stored them in {database!r}.")
     return _EXIT_OK
@@ -400,6 +527,33 @@ def _run_sort(args, database, db_user_id):
 def _run_status(args, database, db_user_id):
     status = get_database_status(connection_str=database, db_user_id=db_user_id)
     print(_format_status_table(status))
+    return _EXIT_OK
+
+
+_SWEEP_RECOMMENDATION_RATIO_LST = (0.5, 0.7, 0.8, 0.9, 0.95, 0.99)
+
+
+def _run_evaluate(args, database, db_user_id):
+    holdout = score_holdout(
+        connection_str=database,
+        db_user_id=db_user_id,
+        test_size=args.test_size,
+        calibrate=not args.no_calibration,
+    )
+    if holdout.test_message_count == 0:
+        print(
+            "Not enough data to evaluate: the held-out test split has no scoreable messages. "
+            "Sync more mail, or lower --test-size."
+        )
+        return _EXIT_OK
+    if args.sweep:
+        reports = evaluate_thresholds(holdout, list(_SWEEP_RECOMMENDATION_RATIO_LST))
+        print(_format_evaluation_sweep(reports))
+    else:
+        report = evaluate_at_threshold(
+            holdout, recommendation_ratio=args.recommendation_ratio
+        )
+        print(_format_evaluation_report(report))
     return _EXIT_OK
 
 
@@ -476,6 +630,7 @@ _COMMAND_HANDLERS = {
     "predict": _run_predict,
     "sort": _run_sort,
     "status": _run_status,
+    "evaluate": _run_evaluate,
 }
 
 
