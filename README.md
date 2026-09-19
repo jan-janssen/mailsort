@@ -90,13 +90,15 @@ same vocabulary as the CLI:
 ```python
 from mailsort import Imap, MailSorter
 
-with MailSorter(Imap(
-    host="imap.example.com",
-    port=993,
-    username="user@example.com",
-    password="...",
-    connection_str="sqlite:///email.db",
-)) as sorter:
+with MailSorter(
+    Imap(
+        host="imap.example.com",
+        port=993,
+        username="user@example.com",
+        password="...",
+        connection_str="sqlite:///email.db",
+    )
+) as sorter:
     sorter.sync()
     sorter.train()
     predictions = sorter.predict("some_label")

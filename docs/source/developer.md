@@ -12,13 +12,15 @@ those tasks are built from:
 ```python
 from mailsort import Imap, MailSorter
 
-with MailSorter(Imap(
-    host="imap.example.com",
-    port=993,
-    username="user@example.com",
-    password="app-password",
-    connection_str="sqlite:///email.db",
-)) as sorter:
+with MailSorter(
+    Imap(
+        host="imap.example.com",
+        port=993,
+        username="user@example.com",
+        password="app-password",
+        connection_str="sqlite:///email.db",
+    )
+) as sorter:
     sync_result = sorter.sync()
     train_result = sorter.train()
     predictions = sorter.predict("MailSortInbox")
