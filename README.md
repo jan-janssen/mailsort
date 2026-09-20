@@ -4,14 +4,21 @@
 [![Documentation Status](https://readthedocs.org/projects/mailsort/badge/?version=latest)](https://mailsort.readthedocs.io/en/latest/?badge=latest)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-Assign labels to emails on any IMAP mail server based on their similarity to other emails already
-assigned to the same label.
+`mailsort` reduces the interruption caused by the increase of daily emails by automatically sorting your emails into 
+folders (IMAP labels) based on the similarity of new messages to the ones you have already sorted. It uses machine 
+learning to learn from your existing folder assignments and suggests or applies folders. 
 
-`mailsort` connects to a mail account over plain IMAP, trains a machine learning model on the labels
-(IMAP folders) you have already assigned, and uses that model to suggest or apply labels to new
-messages. It has no dependency on Google APIs - for Gmail-specific features (OAuth, the Gmail label
-API, the sorting daemon and web UI) see [gmailsorter](https://github.com/jan-janssen/gmailsorter),
-which depends on `mailsort` for the shared IMAP and machine learning core.
+This folder based approach allows you to focus on the most important emails first, while still being able to access less
+important emails later. You are in contorl. When you change the folder assignments, you can retrain the `mailsort` 
+machine learning model so `mailsort` can adapt to your changing preferences. Think of it as a personal assistant that 
+helps you manage your emails.
+
+`mailsort` is deliberately a plain Python library and command line tool rather than a hosted service: you run it
+yourself, on your own schedule (for example from cron), against your own local database. Your emails belong to you.
+
+`mailsort` connects to any IMAP mail server, stores your emails locally in an SQLite database, and trains a machine 
+learning model on the folders (IMAP labels) you have already assigned to your emails, and uses that model to suggest or 
+apply folders to new messages. 
 
 To learn more about `mailsort` please have a look at the documentation below.
 
@@ -80,22 +87,6 @@ password manager.
   [Evaluation and confidence](https://mailsort.readthedocs.io/en/latest/evaluation.html).
 
 Run `mailsort --help` or `mailsort <command> --help` for the full list of options and examples.
-
-### Upgrading from the pre-1.0 CLI
-The previous flat `-u/--update` and `-l/--label` options still work exactly as before, but are
-deprecated in favor of the subcommands above:
-```
-mailsort --host imap.example.com --username user@example.com --password "..." -u
-mailsort --host imap.example.com --username user@example.com --password "..." -l "some_label"
-mailsort --host imap.example.com --username user@example.com --password "..." -l "some_label" --dry-run
-```
-is equivalent to:
-```
-mailsort sync --host imap.example.com --username user@example.com --password "..."
-mailsort train
-mailsort sort some_label --host imap.example.com --username user@example.com --password "..."
-mailsort predict some_label --host imap.example.com --username user@example.com --password "..."
-```
 
 ## Python interface
 The recommended way to use `mailsort` from Python is `MailSorter`, a small facade that wraps a
