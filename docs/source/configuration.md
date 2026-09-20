@@ -31,6 +31,22 @@ mailsort sort MailSortInbox --host imap.example.com --username user@example.com 
 `mailsort` does not include its own scheduler, so to sort emails automatically every few minutes, schedule the
 command above with `cron` or a similar tool on your own machine.
 
+### Scheduling with cron
+A common setup is to run `mailsort sort` every 5 minutes to keep `MailSortInbox` clear, and `mailsort sync` followed
+by `mailsort train` once a day to pick up messages you filed manually and keep the model up to date with them. Add
+something like this to your crontab (`crontab -e`), pulling the password from a password manager rather than storing
+it in the crontab in plain text:
+```cron
+# Sort new mail every 5 minutes
+*/5 * * * * mailsort sort MailSortInbox --host imap.example.com --username user@example.com --password "$(pass show imap/example.com)" -d sqlite:///home/user/email.db
+
+# Sync and retrain once a day at 03:00
+0 3 * * * mailsort sync --host imap.example.com --username user@example.com --password "$(pass show imap/example.com)" -d sqlite:///home/user/email.db && mailsort train -d sqlite:///home/user/email.db
+```
+Use an absolute path for the SQLite database (as above), since `cron` jobs do not run with the working directory you
+run `mailsort` from interactively. If `mailsort` is installed in a virtual environment, use the full path to its
+executable (e.g. `/home/user/.venv/bin/mailsort`) instead of just `mailsort`, since `cron` runs with a minimal `PATH`.
+
 To check what `mailsort` currently knows - where the database lives, how many messages it has stored, and how
 many per-folder models have been trained:
 ```
