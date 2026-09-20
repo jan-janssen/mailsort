@@ -1,3 +1,5 @@
+from contextlib import redirect_stdout
+from io import StringIO
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -518,6 +520,14 @@ class IdentificationArgumentTest(TestCase):
         imap_instance.update_database.assert_called_once_with(
             quick=False, label_lst=None
         )
+
+    def test_no_subcommand_prints_help(self):
+        stdout = StringIO()
+        with redirect_stdout(stdout):
+            exit_code = command_line_parser([])
+
+        self.assertEqual(exit_code, _EXIT_OK)
+        self.assertIn("usage:", stdout.getvalue())
 
 
 if __name__ == "__main__":

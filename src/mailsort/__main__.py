@@ -263,31 +263,12 @@ Run `mailsort <command> --help` for the arguments of an individual command.
 """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    # Top-level flags kept for backwards compatibility with the pre-subcommand CLI
-    # (deprecated - prefer the sync/train/predict/sort/status subcommands below).
+    # Top-level flags so they can be given before the subcommand, e.g. "mailsort --host x
+    # sync" - see _add_connection_arguments for why the subcommand copies suppress their
+    # defaults.
     _add_connection_arguments(parser)
     _add_database_argument(parser)
     _add_identification_argument(parser)
-    parser.add_argument(
-        "-u",
-        "--update",
-        action="store_true",
-        help="Deprecated - use 'mailsort sync' followed by 'mailsort train' instead. "
-        "Update local database and retrain machine learning model.",
-    )
-    parser.add_argument(
-        "-l",
-        "--label",
-        help="Deprecated - use 'mailsort predict FOLDER' or 'mailsort sort FOLDER' instead. "
-        "Email label (IMAP folder) to be filtered with machine learning.",
-    )
-    parser.add_argument(
-        "-n",
-        "--dry-run",
-        action="store_true",
-        help="Deprecated - use 'mailsort predict FOLDER' instead. With -l/--label, print "
-        "the machine learning recommendations for that folder instead of moving any messages.",
-    )
 
     subparsers = parser.add_subparsers(
         dest="command", metavar="{sync,train,predict,sort,status,evaluate}"
@@ -557,73 +538,6 @@ def _run_evaluate(args, database, db_user_id):
     return _EXIT_OK
 
 
-def _run_legacy(args, parser, database, db_user_id):
-    """
-    Pre-subcommand CLI, kept for backwards compatibility with existing scripts using
-    -u/--update or -l/--label - see sync/train/predict/sort for the replacements.
-    """
-    if not args.host or not args.username:
-        print("Please provide --host and --username.")
-        return _EXIT_CONFIG_ERROR
-    if not args.password:
-        print("Please provide --password.")
-        return _EXIT_CONFIG_ERROR
-    if args.update:
-        print(
-            "mailsort: -u/--update is deprecated, use 'mailsort sync' followed by "
-            "'mailsort train' instead.",
-            file=sys.stderr,
-        )
-        imap = _connect(args, database, db_user_id)
-        try:
-            imap.update_database(quick=False)
-            imap.fit_machine_learning_model_to_database(
-                n_estimators=100,
-                max_features=400,
-                random_state=42,
-                bootstrap=True,
-                include_deleted=False,
-            )
-        finally:
-            imap.close()
-        return _EXIT_OK
-    elif args.label and args.dry_run:
-        print(
-            "mailsort: -l/--label with -n/--dry-run is deprecated, use "
-            "'mailsort predict FOLDER' instead.",
-            file=sys.stderr,
-        )
-        imap = _connect(args, database, db_user_id)
-        try:
-            recommendations = imap.get_label_recommendations(
-                label=args.label,
-                recommendation_ratio=_DEFAULT_RECOMMENDATION_RATIO,
-                label_prefix=_DEFAULT_LABEL_PREFIX,
-            )
-        finally:
-            imap.close()
-        print(_format_recommendations_table(recommendations))
-        return _EXIT_OK
-    elif args.label:
-        print(
-            "mailsort: -l/--label is deprecated, use 'mailsort sort FOLDER' instead.",
-            file=sys.stderr,
-        )
-        imap = _connect(args, database, db_user_id)
-        try:
-            imap.filter_messages_from_server(
-                label=args.label,
-                recommendation_ratio=_DEFAULT_RECOMMENDATION_RATIO,
-                label_prefix=_DEFAULT_LABEL_PREFIX,
-            )
-        finally:
-            imap.close()
-        return _EXIT_OK
-    else:
-        parser.print_help()
-        return _EXIT_OK
-
-
 _COMMAND_HANDLERS = {
     "sync": _run_sync,
     "train": _run_train,
@@ -657,12 +571,12 @@ def command_line_parser(argv=None):
     database = getattr(args, "database", None) or _DEFAULT_DATABASE
     handler = _COMMAND_HANDLERS.get(args.command)
 
+    if handler is None:
+        parser.print_help()
+        return _EXIT_OK
+
     try:
-        if handler is not None:
-            return handler(args=args, database=database, db_user_id=db_user_id)
-        return _run_legacy(
-            args=args, parser=parser, database=database, db_user_id=db_user_id
-        )
+        return handler(args=args, database=database, db_user_id=db_user_id)
     except Exception as error:
         print(f"mailsort: error: {error}", file=sys.stderr)
         return _EXIT_RUNTIME_ERROR
