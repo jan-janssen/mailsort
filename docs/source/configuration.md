@@ -99,22 +99,6 @@ end up in your shell history in plain text.
 `--password` and does not have them, or a non-numeric `-i/--identification`), and `1` if an error is raised while
 running the command (e.g. the mail server rejects the connection).
 
-### Upgrading from the pre-1.0 CLI
-The flat, subcommand-less form of the CLI, `-u/--update` and `-l/--label`, still works exactly as before and is
-kept for backwards compatibility, but is deprecated in favor of the subcommands above:
-```
-mailsort --host imap.example.com --username user@example.com --password "..." -d sqlite:///email.db -u
-mailsort --host imap.example.com --username user@example.com --password "..." -d sqlite:///email.db -l MailSortInbox
-mailsort --host imap.example.com --username user@example.com --password "..." -d sqlite:///email.db -l MailSortInbox --dry-run
-```
-are equivalent to:
-```
-mailsort sync --host imap.example.com --username user@example.com --password "..." -d sqlite:///email.db
-mailsort train -d sqlite:///email.db
-mailsort sort MailSortInbox --host imap.example.com --username user@example.com --password "..." -d sqlite:///email.db
-mailsort predict MailSortInbox --host imap.example.com --username user@example.com --password "..." -d sqlite:///email.db
-```
-
 ## Dry run / recommendation mode
 Before letting `mailsort` move emails automatically, or when you simply want to see what the model would do with a
 folder without touching your mailbox, use `mailsort predict` instead of `mailsort sort`:
