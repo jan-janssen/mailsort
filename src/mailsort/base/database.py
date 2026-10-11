@@ -1,19 +1,37 @@
 from typing import Any
 
 import pandas
-from sqlalchemy import Boolean, Column, DateTime, Engine, ForeignKey, Integer, String
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Engine,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.orm import Session, declarative_base
 from tqdm import tqdm
 
 Base = declarative_base()
 
+# MySQL requires a length for VARCHAR columns. Identifiers, labels and single
+# email addresses fit in VARCHAR(255), while subjects and recipient lists can
+# exceed 255 characters and are stored as TEXT. The email content can be larger
+# than the 64 KB limit of TEXT, so it is stored as LONGTEXT on MySQL. Since
+# MySQL 8.4 a foreign key has to reference a unique key, so email_id is unique.
+SHORT_STRING_LENGTH = 255
+LongText = Text().with_variant(LONGTEXT(), "mysql")
+
 
 class EmailContent(Base):
     __tablename__ = "email_content"
     id = Column(Integer, primary_key=True)
-    email_id = Column(String)
-    email_subject = Column(String)
-    email_content = Column(String)
+    email_id = Column(String(SHORT_STRING_LENGTH), unique=True)
+    email_subject = Column(Text)
+    email_content = Column(LongText)
     email_deleted = Column(Boolean)
     email_date = Column(DateTime)
     user_id = Column(Integer)
@@ -22,40 +40,40 @@ class EmailContent(Base):
 class Threads(Base):
     __tablename__ = "email_threads"
     id = Column(Integer, primary_key=True)
-    email_id = Column(String, ForeignKey("email_content.email_id"))
-    thread_id = Column(String)
+    email_id = Column(String(SHORT_STRING_LENGTH), ForeignKey("email_content.email_id"))
+    thread_id = Column(String(SHORT_STRING_LENGTH))
     user_id = Column(Integer)
 
 
 class Labels(Base):
     __tablename__ = "email_labels"
     id = Column(Integer, primary_key=True)
-    email_id = Column(String, ForeignKey("email_content.email_id"))
-    label_id = Column(String)
+    email_id = Column(String(SHORT_STRING_LENGTH), ForeignKey("email_content.email_id"))
+    label_id = Column(String(SHORT_STRING_LENGTH))
     user_id = Column(Integer)
 
 
 class EmailTo(Base):
     __tablename__ = "email_to"
     id = Column(Integer, primary_key=True)
-    email_id = Column(String, ForeignKey("email_content.email_id"))
-    email_to = Column(String)
+    email_id = Column(String(SHORT_STRING_LENGTH), ForeignKey("email_content.email_id"))
+    email_to = Column(Text)
     user_id = Column(Integer)
 
 
 class EmailCc(Base):
     __tablename__ = "email_cc"
     id = Column(Integer, primary_key=True)
-    email_id = Column(String, ForeignKey("email_content.email_id"))
-    email_cc = Column(String)
+    email_id = Column(String(SHORT_STRING_LENGTH), ForeignKey("email_content.email_id"))
+    email_cc = Column(Text)
     user_id = Column(Integer)
 
 
 class EmailFrom(Base):
     __tablename__ = "email_from"
     id = Column(Integer, primary_key=True)
-    email_id = Column(String, ForeignKey("email_content.email_id"))
-    email_from = Column(String)
+    email_id = Column(String(SHORT_STRING_LENGTH), ForeignKey("email_content.email_id"))
+    email_from = Column(String(SHORT_STRING_LENGTH))
     user_id = Column(Integer)
 
 
