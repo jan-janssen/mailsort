@@ -79,6 +79,10 @@ class MessageTest(TestCase):
             email_date_converter("24-01-2022"),
             datetime.strptime("24-01-2022", "%d-%m-%Y"),
         )
+        self.assertEqual(
+            email_date_converter("D, 04 Aug 2026 01:06:03 +0200"),
+            datetime.strptime("04 Aug 2026 01:06:03 +0200", "%d %b %Y %H:%M:%S %z"),
+        )
         self.assertEqual(email_date_converter(None), None)
 
     def test_strip_html_tags(self):

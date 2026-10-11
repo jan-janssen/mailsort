@@ -6,6 +6,7 @@ from typing import Any
 
 _MAX_DATE_COMMAS = 2
 _DATE_HYPHEN_COUNT = 2
+_WEEKDAY_ABBREVIATION_LENGTH = 3
 
 
 # https://stackoverflow.com/questions/753052/strip-html-from-strings-in-python
@@ -37,6 +38,9 @@ def email_date_converter(email_date: Any) -> datetime | None:
         email_date = email_date.replace("\xa0", "")
     if email_date.count(",") >= _MAX_DATE_COMMAS:
         email_date = ", ".join(email_date.split(", ")[-2:])
+    weekday, separator, remainder = email_date.partition(", ")
+    if separator and weekday.isalpha() and len(weekday) != _WEEKDAY_ABBREVIATION_LENGTH:
+        email_date = remainder
     if email_date[-3:-2].isalpha():
         email_date = " ".join(email_date.split()[:-1])
     if email_date[-1].isalpha():
