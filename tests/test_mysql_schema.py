@@ -120,6 +120,32 @@ class LongValuesRoundTripTest(TestCase):
     def tearDown(self) -> None:
         self.session.close()
 
+    def test_unicode_email_fields(self):
+        df = pandas.DataFrame(
+            [
+                {
+                    "content": "Hello 🌍 — café",
+                    "date": datetime(2022, 2, 11, 18, 8, 46),
+                    "from": "sender@example.com",
+                    "id": "unicode-email",
+                    "cc": ["café@example.com"],
+                    "labels": ["重要📬"],
+                    "subject": "こんにちは 🌟",
+                    "threads": "thread-😀",
+                    "to": ["recipient📬@example.com"],
+                }
+            ]
+        )
+        database = get_email_database(engine=self.engine, session=self.session)
+        database.store_dataframe(df=df)
+
+        df_stored = database.get_all_emails()
+        self.assertEqual(df_stored["subject"].values[0], "こんにちは 🌟")
+        self.assertEqual(df_stored["content"].values[0], "Hello 🌍 — café")
+        self.assertEqual(df_stored["labels"].values[0], ["重要📬"])
+        self.assertEqual(df_stored["threads"].values[0], "thread-😀")
+        self.assertEqual(df_stored["to"].values[0], ["recipient📬@example.com"])
+
     def test_long_email_fields(self):
         to_lst = [",".join(f"user{i}@example.com" for i in range(300))]
         subject = "s" * 1000
