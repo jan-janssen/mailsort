@@ -17,12 +17,11 @@ sphinx:
 # Optionally build your docs in additional formats such as PDF and ePub
 formats: []
 
-# Install mailsort from conda
-conda:
-  environment: .ci_support/environment-docs.yml
-
 # Optionally set the version of Python and requirements required to build your docs
 python:
   install:
-    - method: pip
+    - method: uv
+      command: pip
       path: .
+      extras:
+        - docs
