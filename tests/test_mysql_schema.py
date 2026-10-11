@@ -6,7 +6,7 @@ import pandas
 from sqlalchemy import String, Text, create_engine
 from sqlalchemy.dialects import mysql
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.schema import CreateIndex, CreateTable
+from sqlalchemy.schema import CreateTable
 
 from mailsort.base.database import Base as EmailBase
 from mailsort.base.database import get_email_database
@@ -71,14 +71,11 @@ class MySQLSchemaTest(TestCase):
                 self.assertNotIn("VARCHAR,", ddl)
                 self.assertNotIn("VARCHAR\n", ddl)
 
-    def test_foreign_key_target_is_indexed(self):
-        # MySQL requires an index on the column referenced by a foreign key
+    def test_foreign_key_target_is_unique(self):
+        # MySQL 8.4 requires a unique key on the column referenced by a foreign key
         table = EmailBase.metadata.tables["email_content"]
-        ddl = [
-            str(CreateIndex(index).compile(dialect=mysql.dialect()))
-            for index in table.indexes
-        ]
-        self.assertTrue(any("(email_id)" in statement for statement in ddl))
+        ddl = str(CreateTable(table).compile(dialect=mysql.dialect()))
+        self.assertIn("UNIQUE (email_id)", ddl)
 
 
 class LongValuesRoundTripTest(TestCase):

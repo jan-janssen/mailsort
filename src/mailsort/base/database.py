@@ -20,7 +20,8 @@ Base = declarative_base()
 # MySQL requires a length for VARCHAR columns. Identifiers, labels and single
 # email addresses fit in VARCHAR(255), while subjects and recipient lists can
 # exceed 255 characters and are stored as TEXT. The email content can be larger
-# than the 64 KB limit of TEXT, so it is stored as LONGTEXT on MySQL.
+# than the 64 KB limit of TEXT, so it is stored as LONGTEXT on MySQL. Since
+# MySQL 8.4 a foreign key has to reference a unique key, so email_id is unique.
 SHORT_STRING_LENGTH = 255
 LongText = Text().with_variant(LONGTEXT(), "mysql")
 
@@ -28,7 +29,7 @@ LongText = Text().with_variant(LONGTEXT(), "mysql")
 class EmailContent(Base):
     __tablename__ = "email_content"
     id = Column(Integer, primary_key=True)
-    email_id = Column(String(SHORT_STRING_LENGTH), index=True)
+    email_id = Column(String(SHORT_STRING_LENGTH), unique=True)
     email_subject = Column(Text)
     email_content = Column(LongText)
     email_deleted = Column(Boolean)
