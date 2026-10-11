@@ -26,6 +26,16 @@ SHORT_STRING_LENGTH = 255
 LongText = Text().with_variant(LONGTEXT(), "mysql")
 
 
+def _missing_to_none(value: Any) -> Any:
+    """
+    Convert missing values in a pandas.DataFrame, like NaN or NaT, to None, as
+    MySQL rejects NaN while None is stored as NULL.
+    """
+    if pandas.api.types.is_scalar(value) and pandas.isna(value):
+        return None
+    return value
+
+
 class EmailContent(Base):
     __tablename__ = "email_content"
     id = Column(Integer, primary_key=True)
@@ -351,7 +361,11 @@ class DatabaseInterface(DatabaseTemplate):
     def _commit_thread_table(self, df: pandas.DataFrame, user_id: int = 1) -> None:
         self._session.add_all(
             [
-                Threads(email_id=email_id, thread_id=thread_id, user_id=user_id)
+                Threads(
+                    email_id=email_id,
+                    thread_id=_missing_to_none(thread_id),
+                    user_id=user_id,
+                )
                 for email_id, thread_id in zip(df["id"], df["threads"], strict=False)
             ]
         )
@@ -360,7 +374,11 @@ class DatabaseInterface(DatabaseTemplate):
     def _commit_email_from_table(self, df: pandas.DataFrame, user_id: int = 1) -> None:
         self._session.add_all(
             [
-                EmailFrom(email_id=email_id, email_from=email_from, user_id=user_id)
+                EmailFrom(
+                    email_id=email_id,
+                    email_from=_missing_to_none(email_from),
+                    user_id=user_id,
+                )
                 for email_id, email_from in zip(df["id"], df["from"], strict=False)
             ]
         )
@@ -401,10 +419,10 @@ class DatabaseInterface(DatabaseTemplate):
             [
                 EmailContent(
                     email_id=email_id,
-                    email_subject=email_subject,
-                    email_content=email_content,
+                    email_subject=_missing_to_none(email_subject),
+                    email_content=_missing_to_none(email_content),
                     email_deleted=False,
-                    email_date=email_date,
+                    email_date=_missing_to_none(email_date),
                     user_id=user_id,
                 )
                 for email_id, email_subject, email_content, email_date in zip(

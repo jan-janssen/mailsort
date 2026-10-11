@@ -1,9 +1,10 @@
+import math
 from datetime import datetime
 from unittest import TestCase
 from unittest.mock import MagicMock
 
 import pandas
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
 from mailsort.base.database import EmailFrom, get_email_database
@@ -182,6 +183,50 @@ class DatabaseTest(TestCase):
         self.assertEqual(len(self.database.get_all_emails()), 2)
         self.assertTrue(pandas.isna(self.database.get_all_emails().iloc[1]["from"]))
         self.assertEqual(len(self.database.get_emails_by_from(email_from=None)), 1)
+
+    def test_store_dataframe_with_nan_values(self):
+        # MySQL rejects NaN parameters, while SQLite silently stores them as NULL,
+        # so check the parameters sent to the database driver directly.
+        engine = create_engine("sqlite:///:memory:")
+        parameter_lst = []
+
+        @event.listens_for(engine, "before_cursor_execute")
+        def collect_parameters(conn, cursor, statement, parameters, context, many):
+            parameter_lst.extend(parameters if many else [parameters])
+
+        database = get_email_database(
+            engine=engine, session=sessionmaker(bind=engine)()
+        )
+        database.store_dataframe(
+            df=pandas.DataFrame(
+                [
+                    {
+                        "content": float("nan"),
+                        "date": datetime.strptime(
+                            "Fri, 11 Feb 2022 18:08:46 +0100",
+                            "%a, %d %b %Y %H:%M:%S %z",
+                        ),
+                        "from": float("nan"),
+                        "id": "myid789",
+                        "cc": [],
+                        "labels": [],
+                        "subject": float("nan"),
+                        "threads": "abc789",
+                        "to": [],
+                    }
+                ]
+            )
+        )
+        self.assertFalse(
+            any(
+                isinstance(value, float) and math.isnan(value)
+                for parameters in parameter_lst
+                for value in parameters
+            )
+        )
+        email = database.get_all_emails().iloc[0]
+        self.assertIsNone(email["content"])
+        self.assertIsNone(email["subject"])
 
     def test_create_dataframe_no_from_in_db(self):
         self.database.session.query(EmailFrom).filter(EmailFrom.id == 1).delete()
