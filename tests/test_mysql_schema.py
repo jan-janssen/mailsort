@@ -3,13 +3,13 @@ from datetime import datetime
 from unittest import TestCase
 
 import pandas
-from sqlalchemy import String, Text, create_engine
+from sqlalchemy import String, Text, create_engine, make_url
 from sqlalchemy.dialects import mysql
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.schema import CreateTable
 
 from mailsort.base.database import Base as EmailBase
-from mailsort.base.database import get_email_database
+from mailsort.base.database import _with_mysql_charset, get_email_database
 from mailsort.ml.database import Base as MachineLearningBase
 from mailsort.ml.database import get_machine_learning_database
 
@@ -76,6 +76,40 @@ class MySQLSchemaTest(TestCase):
         table = EmailBase.metadata.tables["email_content"]
         ddl = str(CreateTable(table).compile(dialect=mysql.dialect()))
         self.assertIn("UNIQUE (email_id)", ddl)
+
+    def test_tables_use_utf8mb4(self):
+        # MySQL's utf8 charset only supports up to 3 bytes per character, so
+        # 4 byte characters like emojis require utf8mb4
+        dialect = mysql.dialect()
+        for base in [EmailBase, MachineLearningBase]:
+            for table in base.metadata.sorted_tables:
+                ddl = str(CreateTable(table).compile(dialect=dialect))
+                self.assertIn("CHARSET=utf8mb4", ddl, table.name)
+                self.assertIn("COLLATE utf8mb4_bin", ddl, table.name)
+
+
+class MySQLConnectionCharsetTest(TestCase):
+    def test_mysql_connection_uses_utf8mb4(self):
+        for connection_str in [
+            "mysql://user:password@localhost/mailsort",
+            "mysql+mysqldb://user:password@localhost/mailsort",
+            "mysql+pymysql://user:password@localhost/mailsort",
+            "mariadb+mysqldb://user:password@localhost/mailsort",
+        ]:
+            url = _with_mysql_charset(connection_str)
+            self.assertEqual(url.query["charset"], "utf8mb4", connection_str)
+
+    def test_explicit_charset_is_kept(self):
+        url = _with_mysql_charset(
+            "mysql+mysqldb://user:password@localhost/mailsort?charset=latin1"
+        )
+        self.assertEqual(url.query["charset"], "latin1")
+
+    def test_other_databases_are_unchanged(self):
+        for connection_str in ["sqlite:///:memory:", "sqlite:///mailsort.db"]:
+            self.assertEqual(
+                _with_mysql_charset(connection_str), make_url(connection_str)
+            )
 
 
 class LongValuesRoundTripTest(TestCase):

@@ -418,7 +418,7 @@ class TestImapMailBase(TestCase):
 
     def test_create_databases(self):
         with (
-            patch("mailsort.imap.mail.create_engine") as create_engine_mock,
+            patch("mailsort.imap.mail.create_database_engine") as create_engine_mock,
             patch("mailsort.imap.mail.sessionmaker") as sessionmaker_mock,
             patch("mailsort.imap.mail.get_email_database") as get_email_db_mock,
             patch("mailsort.imap.mail.get_machine_learning_database") as get_ml_db_mock,

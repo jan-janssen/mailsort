@@ -5,7 +5,11 @@ from sqlalchemy import Column, Engine, Integer, LargeBinary, String, Text
 from sqlalchemy.dialects.mysql import LONGBLOB
 from sqlalchemy.orm import Session, declarative_base
 
-from mailsort.base.database import SHORT_STRING_LENGTH, DatabaseTemplate
+from mailsort.base.database import (
+    MYSQL_TABLE_ARGS,
+    SHORT_STRING_LENGTH,
+    DatabaseTemplate,
+)
 
 Base = declarative_base()
 
@@ -15,6 +19,7 @@ LongBinary = LargeBinary().with_variant(LONGBLOB(), "mysql")
 
 class MachineLearningLabels(Base):
     __tablename__ = "ml_labels"
+    __table_args__ = MYSQL_TABLE_ARGS
     id = Column(Integer, primary_key=True)
     label_id = Column(String(SHORT_STRING_LENGTH))
     random_forest = Column(LongBinary)
@@ -23,6 +28,7 @@ class MachineLearningLabels(Base):
 
 class MachineLearningFeatures(Base):
     __tablename__ = "ml_features"
+    __table_args__ = MYSQL_TABLE_ARGS
     id = Column(Integer, primary_key=True)
     # Features are derived from the recipients, which can exceed 255 characters
     feature = Column(Text)
