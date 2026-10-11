@@ -1,26 +1,31 @@
 import pickle
 
 from sklearn.ensemble import RandomForestClassifier
-from sqlalchemy import Column, Engine, Integer, String
+from sqlalchemy import Column, Engine, Integer, LargeBinary, String, Text
+from sqlalchemy.dialects.mysql import LONGBLOB
 from sqlalchemy.orm import Session, declarative_base
 
-from mailsort.base.database import DatabaseTemplate
+from mailsort.base.database import SHORT_STRING_LENGTH, DatabaseTemplate
 
 Base = declarative_base()
+
+# Pickled random forest models easily exceed the 16 MB limit of MEDIUMBLOB
+LongBinary = LargeBinary().with_variant(LONGBLOB(), "mysql")
 
 
 class MachineLearningLabels(Base):
     __tablename__ = "ml_labels"
     id = Column(Integer, primary_key=True)
-    label_id = Column(String)
-    random_forest = Column(String)
+    label_id = Column(String(SHORT_STRING_LENGTH))
+    random_forest = Column(LongBinary)
     user_id = Column(Integer)
 
 
 class MachineLearningFeatures(Base):
     __tablename__ = "ml_features"
     id = Column(Integer, primary_key=True)
-    feature = Column(String)
+    # Features are derived from the recipients, which can exceed 255 characters
+    feature = Column(Text)
     user_id = Column(Integer)
 
 
