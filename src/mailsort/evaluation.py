@@ -8,10 +8,9 @@ a mail backend such as mailsort.Imap, which would require live mail server crede
 not need.
 """
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from mailsort.base import get_email_database
+from mailsort.base import create_database_engine, get_email_database
 from mailsort.ml.evaluation import (
     EvaluationReport,
     FolderMetrics,
@@ -76,7 +75,7 @@ def evaluate_models(
     Returns:
         mailsort.ml.evaluation.EvaluationReport
     """
-    engine = create_engine(connection_str)
+    engine = create_database_engine(connection_str)
     session = sessionmaker(bind=engine)()
     try:
         db_email = get_email_database(engine=engine, session=session)
@@ -131,7 +130,7 @@ def score_holdout(
     Returns:
         mailsort.ml.evaluation.HoldoutScores
     """
-    engine = create_engine(connection_str)
+    engine = create_database_engine(connection_str)
     session = sessionmaker(bind=engine)()
     try:
         db_email = get_email_database(engine=engine, session=session)

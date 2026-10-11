@@ -2,6 +2,7 @@ from typing import Any
 
 import pandas
 from sqlalchemy import (
+    URL,
     Boolean,
     Column,
     DateTime,
@@ -10,6 +11,8 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    create_engine,
+    make_url,
 )
 from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.orm import Session, declarative_base
@@ -25,6 +28,27 @@ Base = declarative_base()
 SHORT_STRING_LENGTH = 255
 LongText = Text().with_variant(LONGTEXT(), "mysql")
 
+# MySQL's utf8 charset only supports characters of up to 3 bytes, so emojis in
+# subjects or content require utf8mb4. The binary collation keeps comparisons
+# case-sensitive, like in SQLite.
+MYSQL_TABLE_ARGS = {"mysql_charset": "utf8mb4", "mysql_collate": "utf8mb4_bin"}
+_MYSQL_CHARSET_DRIVERS = ("mysqldb", "pymysql")
+
+
+def _with_mysql_charset(connection_str: str | URL) -> URL:
+    """
+    Add charset=utf8mb4 to MySQL connection strings without an explicit charset,
+    so 4 byte characters are also transmitted correctly.
+    """
+    url = make_url(connection_str)
+    if url.get_driver_name() in _MYSQL_CHARSET_DRIVERS and "charset" not in url.query:
+        url = url.update_query_dict({"charset": "utf8mb4"})
+    return url
+
+
+def create_database_engine(connection_str: str | URL) -> Engine:
+    return create_engine(_with_mysql_charset(connection_str))
+
 
 def _missing_to_none(value: Any) -> Any:
     """
@@ -38,6 +62,7 @@ def _missing_to_none(value: Any) -> Any:
 
 class EmailContent(Base):
     __tablename__ = "email_content"
+    __table_args__ = MYSQL_TABLE_ARGS
     id = Column(Integer, primary_key=True)
     email_id = Column(String(SHORT_STRING_LENGTH), unique=True)
     email_subject = Column(Text)
@@ -49,6 +74,7 @@ class EmailContent(Base):
 
 class Threads(Base):
     __tablename__ = "email_threads"
+    __table_args__ = MYSQL_TABLE_ARGS
     id = Column(Integer, primary_key=True)
     email_id = Column(String(SHORT_STRING_LENGTH), ForeignKey("email_content.email_id"))
     thread_id = Column(String(SHORT_STRING_LENGTH))
@@ -57,6 +83,7 @@ class Threads(Base):
 
 class Labels(Base):
     __tablename__ = "email_labels"
+    __table_args__ = MYSQL_TABLE_ARGS
     id = Column(Integer, primary_key=True)
     email_id = Column(String(SHORT_STRING_LENGTH), ForeignKey("email_content.email_id"))
     label_id = Column(String(SHORT_STRING_LENGTH))
@@ -65,6 +92,7 @@ class Labels(Base):
 
 class EmailTo(Base):
     __tablename__ = "email_to"
+    __table_args__ = MYSQL_TABLE_ARGS
     id = Column(Integer, primary_key=True)
     email_id = Column(String(SHORT_STRING_LENGTH), ForeignKey("email_content.email_id"))
     email_to = Column(Text)
@@ -73,6 +101,7 @@ class EmailTo(Base):
 
 class EmailCc(Base):
     __tablename__ = "email_cc"
+    __table_args__ = MYSQL_TABLE_ARGS
     id = Column(Integer, primary_key=True)
     email_id = Column(String(SHORT_STRING_LENGTH), ForeignKey("email_content.email_id"))
     email_cc = Column(Text)
@@ -81,6 +110,7 @@ class EmailCc(Base):
 
 class EmailFrom(Base):
     __tablename__ = "email_from"
+    __table_args__ = MYSQL_TABLE_ARGS
     id = Column(Integer, primary_key=True)
     email_id = Column(String(SHORT_STRING_LENGTH), ForeignKey("email_content.email_id"))
     email_from = Column(String(SHORT_STRING_LENGTH))

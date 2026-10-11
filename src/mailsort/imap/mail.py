@@ -3,10 +3,9 @@ import email
 import imaplib
 import re
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from mailsort.base import get_email_database
+from mailsort.base import create_database_engine, get_email_database
 from mailsort.base.mail import AbstractMailBox
 from mailsort.imap.message import get_email_dict
 from mailsort.ml import get_machine_learning_database
@@ -341,7 +340,7 @@ class ImapMailBase(AbstractMailBox):
 
     @staticmethod
     def _create_databases(connection_str):
-        engine = create_engine(connection_str)
+        engine = create_database_engine(connection_str)
         session = sessionmaker(bind=engine)()
         db_email = get_email_database(engine=engine, session=session)
         db_ml = get_machine_learning_database(engine=engine, session=session)

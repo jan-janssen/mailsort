@@ -8,10 +8,9 @@ connection to the mail server.
 
 from dataclasses import dataclass
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from mailsort.base import get_email_database
+from mailsort.base import create_database_engine, get_email_database
 from mailsort.ml import get_machine_learning_database
 
 
@@ -39,7 +38,7 @@ def get_database_status(connection_str, db_user_id=1):
     Returns:
         DatabaseStatus
     """
-    engine = create_engine(connection_str)
+    engine = create_database_engine(connection_str)
     session = sessionmaker(bind=engine)()
     try:
         db_email = get_email_database(engine=engine, session=session)

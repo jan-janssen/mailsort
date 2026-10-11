@@ -8,10 +8,9 @@ instead of going through a mail backend such as mailsort.Imap, which would requi
 server credentials it does not need.
 """
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from mailsort.base import get_email_database
+from mailsort.base import create_database_engine, get_email_database
 from mailsort.ml import (
     DEFAULT_MAX_CALIBRATION_CV_FOLDS,
     DEFAULT_MIN_SAMPLES_PER_CLASS_FOR_CALIBRATION,
@@ -58,7 +57,7 @@ def train_machine_learning_models(
     Returns:
         int: number of per-folder models trained
     """
-    engine = create_engine(connection_str)
+    engine = create_database_engine(connection_str)
     session = sessionmaker(bind=engine)()
     try:
         db_email = get_email_database(engine=engine, session=session)
