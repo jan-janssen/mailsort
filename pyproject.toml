@@ -36,6 +36,13 @@ Homepage = "https://github.com/jan-janssen/mailsort"
 [project.scripts]
 mailsort = "mailsort.__main__:command_line_parser"
 
+[project.optional-dependencies]
+docs = [
+    "nbsphinx",
+    "sphinx",
+    "myst-parser",
+]
+
 [tool.ruff.lint]
 select = [
     # pycodestyle
