@@ -1,5 +1,7 @@
 import unittest
 import pickle
+import zlib
+from unittest import mock
 import ast
 import pandas as pd
 import numpy as np
@@ -27,6 +29,7 @@ from mailsort.ml.database import (
     MachineLearningDatabase,
     MachineLearningLabels,
     MachineLearningFeatures,
+    MachineLearningModelChunks,
     get_machine_learning_database,
     Base,
 )
@@ -92,6 +95,54 @@ class TestMlDatabase(unittest.TestCase):
         loaded_models, _ = self.db.load_models()
         self.assertEqual(set(loaded_models.keys()), {"label1"})
         self.assertEqual(self.session.query(MachineLearningLabels).count(), 1)
+
+    def test_store_models_in_multiple_chunks(self):
+        model = {"weights": np.random.default_rng(0).random(10000).tolist()}
+        with mock.patch("mailsort.ml.database.MODEL_CHUNK_SIZE", 1000):
+            self.db.store_models({"label1": model}, ["feature1"])
+        chunk_count = self.session.query(MachineLearningModelChunks).count()
+        self.assertGreater(chunk_count, 1)
+        self.assertLessEqual(
+            max(
+                len(chunk.data)
+                for chunk in self.session.query(MachineLearningModelChunks)
+            ),
+            1000,
+        )
+        self.assertIsNone(self.session.query(MachineLearningLabels).one().random_forest)
+        loaded_models, _ = self.db.load_models()
+        self.assertEqual(loaded_models, {"label1": model})
+
+    def test_store_models_update_and_delete_chunks(self):
+        with mock.patch("mailsort.ml.database.MODEL_CHUNK_SIZE", 10):
+            self.db.store_models(
+                {"label1": "model1" * 100, "label2": "model2" * 100}, ["feature1"]
+            )
+            self.db.store_models({"label1": "model1_updated"}, ["feature1"])
+        loaded_models, _ = self.db.load_models()
+        self.assertEqual(loaded_models, {"label1": "model1_updated"})
+        expected_chunk_count = -(
+            -len(zlib.compress(pickle.dumps("model1_updated"))) // 10
+        )
+        self.assertEqual(
+            self.session.query(MachineLearningModelChunks).count(),
+            expected_chunk_count,
+        )
+
+    def test_load_models_stored_without_chunks(self):
+        self.session.add(
+            MachineLearningLabels(
+                label_id="label1", random_forest=pickle.dumps("legacy"), user_id=1
+            )
+        )
+        self.session.commit()
+        loaded_models, _ = self.db.load_models()
+        self.assertEqual(loaded_models, {"label1": "legacy"})
+
+        self.db.store_models({"label1": "updated"}, [])
+        loaded_models, _ = self.db.load_models()
+        self.assertEqual(loaded_models, {"label1": "updated"})
+        self.assertIsNone(self.session.query(MachineLearningLabels).one().random_forest)
 
     def test_store_features_add_and_remove(self):
         models = {"label1": "model1"}
