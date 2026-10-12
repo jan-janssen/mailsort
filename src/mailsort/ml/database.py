@@ -96,7 +96,7 @@ class MachineLearningDatabase(DatabaseTemplate):
             self._session.add_all(
                 [
                     MachineLearningLabels(label_id=k, user_id=user_id)
-                    for k in model_dict_new.keys()
+                    for k in model_dict_new
                 ]
             )
             for k, v in model_dict_new.items():
