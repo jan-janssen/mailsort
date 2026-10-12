@@ -1,4 +1,5 @@
 import pickle
+import zlib
 
 from sklearn.ensemble import RandomForestClassifier
 from sqlalchemy import Column, Engine, Integer, LargeBinary, String, Text
@@ -16,6 +17,11 @@ Base = declarative_base()
 # Pickled random forest models easily exceed the 16 MB limit of MEDIUMBLOB
 LongBinary = LargeBinary().with_variant(LONGBLOB(), "mysql")
 
+# MySQL rejects statements larger than max_allowed_packet (64 MB by default and
+# at most 1 GB), while a pickled calibrated random forest can be several hundred
+# MB. So the compressed pickle is split into chunks, stored as individual rows.
+MODEL_CHUNK_SIZE = 1024 * 1024
+
 
 class MachineLearningLabels(Base):
     __tablename__ = "ml_labels"
@@ -23,6 +29,16 @@ class MachineLearningLabels(Base):
     id = Column(Integer, primary_key=True)
     label_id = Column(String(SHORT_STRING_LENGTH))
     random_forest = Column(LongBinary)
+    user_id = Column(Integer)
+
+
+class MachineLearningModelChunks(Base):
+    __tablename__ = "ml_label_chunks"
+    __table_args__ = MYSQL_TABLE_ARGS
+    id = Column(Integer, primary_key=True)
+    label_id = Column(String(SHORT_STRING_LENGTH))
+    chunk_index = Column(Integer)
+    data = Column(LongBinary)
     user_id = Column(Integer)
 
 
@@ -79,12 +95,12 @@ class MachineLearningDatabase(DatabaseTemplate):
         if len(model_dict_new) > 0:
             self._session.add_all(
                 [
-                    MachineLearningLabels(
-                        label_id=k, random_forest=pickle.dumps(v), user_id=user_id
-                    )
-                    for k, v in model_dict_new.items()
+                    MachineLearningLabels(label_id=k, user_id=user_id)
+                    for k in model_dict_new
                 ]
             )
+            for k, v in model_dict_new.items():
+                self._store_model_chunks(label=k, model=v, user_id=user_id)
         if len(feature_new_lst) > 0:
             self._session.add_all(
                 [
@@ -102,13 +118,17 @@ class MachineLearningDatabase(DatabaseTemplate):
                 .all()
             )
             for label_obj in label_obj_lst:
-                label_obj.random_forest = pickle.dumps(
-                    model_dict_update[label_obj.label_id]
-                )
+                label_obj.random_forest = None
+            self._delete_model_chunks(
+                label_lst=list(model_dict_update.keys()), user_id=user_id
+            )
+            for k, v in model_dict_update.items():
+                self._store_model_chunks(label=k, model=v, user_id=user_id)
         if len(model_delete_lst) > 0:
             self._session.query(MachineLearningLabels).filter(
                 MachineLearningLabels.user_id == user_id
             ).filter(MachineLearningLabels.label_id.in_(model_delete_lst)).delete()
+            self._delete_model_chunks(label_lst=model_delete_lst, user_id=user_id)
         if len(feature_remove_lst) > 0:
             self._session.query(MachineLearningFeatures).filter(
                 MachineLearningFeatures.user_id == user_id
@@ -135,9 +155,44 @@ class MachineLearningDatabase(DatabaseTemplate):
         )
         feature_lst = self.get_features(user_id=user_id)
         return {
-            label_obj.label_id: pickle.loads(label_obj.random_forest)
+            label_obj.label_id: (
+                # Models stored before the chunked storage was introduced
+                pickle.loads(label_obj.random_forest)
+                if label_obj.random_forest is not None
+                else self._load_model_chunks(label=label_obj.label_id, user_id=user_id)
+            )
             for label_obj in label_obj_lst
         }, feature_lst
+
+    def _store_model_chunks(self, label: str, model, user_id: int = 1) -> None:
+        data = zlib.compress(pickle.dumps(model))
+        for chunk_index, start in enumerate(range(0, len(data), MODEL_CHUNK_SIZE)):
+            self._session.add(
+                MachineLearningModelChunks(
+                    label_id=label,
+                    chunk_index=chunk_index,
+                    data=data[start : start + MODEL_CHUNK_SIZE],
+                    user_id=user_id,
+                )
+            )
+            # Flush each chunk individually, so the chunks are not combined in
+            # a single multi-row INSERT statement exceeding max_allowed_packet
+            self._session.flush()
+
+    def _load_model_chunks(self, label: str, user_id: int = 1):
+        chunk_lst = (
+            self._session.query(MachineLearningModelChunks.data)
+            .filter(MachineLearningModelChunks.user_id == user_id)
+            .filter(MachineLearningModelChunks.label_id == label)
+            .order_by(MachineLearningModelChunks.chunk_index)
+            .all()
+        )
+        return pickle.loads(zlib.decompress(b"".join(chunk[0] for chunk in chunk_lst)))
+
+    def _delete_model_chunks(self, label_lst: list[str], user_id: int = 1) -> None:
+        self._session.query(MachineLearningModelChunks).filter(
+            MachineLearningModelChunks.user_id == user_id
+        ).filter(MachineLearningModelChunks.label_id.in_(label_lst)).delete()
 
     def get_labels(self, user_id: int = 1) -> list[str]:
         """

@@ -62,6 +62,8 @@ class MySQLSchemaTest(TestCase):
         self.assertEqual(column_types["ml_labels.label_id"], "VARCHAR(255)")
         self.assertEqual(column_types["ml_labels.random_forest"], "LONGBLOB")
         self.assertEqual(column_types["ml_features.feature"], "TEXT")
+        self.assertEqual(column_types["ml_label_chunks.label_id"], "VARCHAR(255)")
+        self.assertEqual(column_types["ml_label_chunks.data"], "LONGBLOB")
 
     def test_create_table_compiles_for_mysql(self):
         dialect = mysql.dialect()
