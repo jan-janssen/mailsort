@@ -120,7 +120,7 @@ def calibration_cv_folds(y: pandas.Series, max_folds: int) -> int:
     return max(2, min(max_folds, int(y.value_counts().min())))
 
 
-def train_label_classifier(
+def train_folder_classifier(
     n_estimators: int,
     random_state: int,
     bootstrap: bool,
@@ -141,7 +141,7 @@ def train_label_classifier(
         random_state: random state for initialization
         bootstrap: whether bootstrap samples are used when building trees
         X: binary encoded features stored in a pandas DataFrame
-        y: binary (0.0/1.0) encoded label for this folder
+        y: binary (0.0/1.0) encoded folder for this folder
         max_features: maximum number of features considered per split
         calibrate: attempt calibration at all - default: True
         min_samples_per_class_for_calibration: see should_calibrate()
@@ -170,7 +170,7 @@ def train_label_classifier(
 
 
 def is_calibrated(model: RandomForestClassifier | CalibratedClassifierCV) -> bool:
-    """Whether `model` (as returned by train_label_classifier()) is a calibrated classifier."""
+    """Whether `model` (as returned by train_folder_classifier()) is a calibrated classifier."""
     return isinstance(model, CalibratedClassifierCV)
 
 
@@ -184,11 +184,11 @@ def positive_class_probability(
     in practice).
 
     Handles the edge case where a folder's training data contained only one class (e.g. every
-    email in the training set happened to carry that label): predict_proba() then returns a
+    email in the training set happened to carry that folder): predict_proba() then returns a
     single column instead of two.
 
     Args:
-        model: a classifier trained by train_label_classifier()
+        model: a classifier trained by train_folder_classifier()
         X: binary encoded features to score
 
     Returns:

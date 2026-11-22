@@ -124,14 +124,14 @@ class ImapMailBase(AbstractMailBox):
                 raise error from None
             return operation()
 
-    def _get_label_translate_dict(self):
-        return self._run_with_reconnect(self._get_label_translate_dict_impl)
+    def _get_folder_translate_dict(self):
+        return self._run_with_reconnect(self._get_folder_translate_dict_impl)
 
-    def _get_label_translate_dict_impl(self):
+    def _get_folder_translate_dict_impl(self):
         status, mailbox_lst = self._service.list()
         if status != "OK" or not mailbox_lst:
             return {}
-        label_dict = {}
+        folder_dict = {}
         for entry in mailbox_lst:
             parsed_entry = self._parse_list_entry(entry)
             if parsed_entry is None:
@@ -139,8 +139,8 @@ class ImapMailBase(AbstractMailBox):
             flags, delimiter, name = parsed_entry
             if self._is_special_folder(flags=flags, delimiter=delimiter, name=name):
                 continue
-            label_dict[name] = name
-        return label_dict
+            folder_dict[name] = name
+        return folder_dict
 
     @staticmethod
     def _is_special_folder(flags, delimiter, name):
@@ -154,7 +154,7 @@ class ImapMailBase(AbstractMailBox):
             name (str): full folder name
 
         Returns:
-            bool: True if the folder must not be offered as a sorting label
+            bool: True if the folder must not be offered as a sorting folder
         """
         if any(flag.lower() in _SKIP_FOLDER_ATTRIBUTES for flag in flags):
             return True
@@ -165,14 +165,14 @@ class ImapMailBase(AbstractMailBox):
         return any(candidate in _SKIP_FOLDER_NAMES for candidate in name_lst)
 
     def _search_email_on_server(
-        self, query_string="", label_lst=None, only_message_ids=False
+        self, query_string="", folder_lst=None, only_message_ids=False
     ):
         """
-        Search emails either by a specific query or optionally limit your search to a list of labels
+        Search emails either by a specific query or optionally limit your search to a list of folders
 
         Args:
             query_string (str): not supported yet - must be empty
-            label_lst (list): list of IMAP folders to search; if empty, every folder is searched
+            folder_lst (list): list of IMAP folders to search; if empty, every folder is searched
             only_message_ids (bool): return only the composite email IDs - default: false
 
         Returns:
@@ -181,21 +181,23 @@ class ImapMailBase(AbstractMailBox):
         return self._run_with_reconnect(
             lambda: self._search_email_on_server_impl(
                 query_string=query_string,
-                label_lst=label_lst,
+                folder_lst=folder_lst,
                 only_message_ids=only_message_ids,
             )
         )
 
     def _search_email_on_server_impl(
-        self, query_string="", label_lst=None, only_message_ids=False
+        self, query_string="", folder_lst=None, only_message_ids=False
     ):
         if query_string:
             raise NotImplementedError(
-                "Custom IMAP search queries are not supported yet, only label_lst filtering."
+                "Custom IMAP search queries are not supported yet, only folder_lst filtering."
             )
-        if label_lst is None:
-            label_lst = []
-        folder_lst = label_lst if len(label_lst) > 0 else list(self._label_dict.keys())
+        if folder_lst is None:
+            folder_lst = []
+        folder_lst = (
+            folder_lst if len(folder_lst) > 0 else list(self._folder_dict.keys())
+        )
         message_id_lst = [
             f"{folder}\x1f{uid}"
             for folder in folder_lst
@@ -244,24 +246,24 @@ class ImapMailBase(AbstractMailBox):
         parsed_message = email.message_from_bytes(raw_message)
         return folder, uid, parsed_message
 
-    def _modify_message_labels(
-        self, message_id, label_id_remove_lst=None, label_id_add_lst=None
+    def _modify_message_folders(
+        self, message_id, folder_id_remove_lst=None, folder_id_add_lst=None
     ):
         return self._run_with_reconnect(
-            lambda: self._modify_message_labels_impl(
+            lambda: self._modify_message_folders_impl(
                 message_id=message_id,
-                label_id_remove_lst=label_id_remove_lst,
-                label_id_add_lst=label_id_add_lst,
+                folder_id_remove_lst=folder_id_remove_lst,
+                folder_id_add_lst=folder_id_add_lst,
             )
         )
 
-    def _modify_message_labels_impl(
-        self, message_id, label_id_remove_lst=None, label_id_add_lst=None
+    def _modify_message_folders_impl(
+        self, message_id, folder_id_remove_lst=None, folder_id_add_lst=None
     ):
-        if not label_id_add_lst:
+        if not folder_id_add_lst:
             return
         folder, uid = message_id.split("\x1f", 1)
-        target_folder = label_id_add_lst[0]
+        target_folder = folder_id_add_lst[0]
         status, _ = self._service.select(f'"{folder}"')
         if status != "OK":
             raise RuntimeError(f"Could not select IMAP folder {folder!r}")
@@ -288,7 +290,7 @@ class ImapMailBase(AbstractMailBox):
                 # servers supporting neither MOVE nor UIDPLUS.
                 self._service.expunge()
 
-    def _get_labels_for_email(self, message_id):
+    def _get_folders_for_email(self, message_id):
         folder, _uid = message_id.split("\x1f", 1)
         return [folder]
 

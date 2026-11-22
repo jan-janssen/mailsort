@@ -5,7 +5,7 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 `mailsort` reduces the interruption caused by the increase of daily emails by automatically sorting your emails into 
-folders (IMAP labels) based on the similarity of new messages to the ones you have already sorted. It uses machine 
+IMAP folders based on the similarity of new messages to the ones you have already sorted. It uses machine 
 learning to learn from your existing folder assignments and suggests or applies folders. 
 
 This folder based approach allows you to focus on the most important emails first, while still being able to access less
@@ -17,7 +17,7 @@ helps you manage your emails.
 yourself, on your own schedule (for example from cron), against your own local database. Your emails belong to you.
 
 `mailsort` connects to any IMAP mail server, stores your emails locally in an SQLite database, and trains a machine 
-learning model on the folders (IMAP labels) you have already assigned to your emails, and uses that model to suggest or 
+learning model on the IMAP folders you have already assigned to your emails, and uses that model to suggest or 
 apply folders to new messages. 
 
 To learn more about `mailsort` please have a look at the documentation below.
@@ -53,8 +53,8 @@ pip install mailsort
 ```
 mailsort sync --host imap.example.com --username user@example.com --password "..."
 mailsort train MailSortInbox
-mailsort predict some_label
-mailsort sort some_label
+mailsort predict some_folder
+mailsort sort some_folder
 mailsort status
 mailsort evaluate MailSortInbox
 ```
@@ -71,8 +71,8 @@ password manager.
   ```
   MESSAGE ID                           SUBJECT                                  RECOMMENDED FOLDER    SCORE TYPE       ACCEPTED
   -----------------------------------------------------------------------------------------------------------------------------
-  some_label\x1f101                     Your invoice for March                   Receipts               0.97 calibrated     True
-  some_label\x1f102                     Let's catch up next week                 -                      0.00 raw           False
+  some_folder\x1f101                     Your invoice for March                   Receipts               0.97 calibrated     True
+  some_folder\x1f102                     Let's catch up next week                 -                      0.00 raw           False
   ```
 - `sort FOLDER` does the same scoring as `predict`, but actually moves the messages whose score
   clears the configured threshold (`--recommendation-ratio`, 90% by default). That threshold is a
@@ -106,8 +106,8 @@ with MailSorter(
 ) as sorter:
     sorter.sync()
     sorter.train("MailSortInbox")
-    predictions = sorter.predict("some_label")
-    sorter.sort("some_label")
+    predictions = sorter.predict("some_folder")
+    sorter.sort("some_folder")
 ```
 - `sync()` downloads new and changed messages into the local database and returns a `SyncResult`.
 - `train()` (re-)trains the machine learning models on the local database and returns a
@@ -128,7 +128,7 @@ returns them - it never moves, deletes, archives or otherwise modifies anything 
 Each message gets a `Prediction`, a plain, JSON-serializable dataclass - a first-class,
 side-effect-free representation of one classification result, independent of any mailbox change:
 ```python
-for prediction in sorter.predict("some_label"):
+for prediction in sorter.predict("some_folder"):
     print(
         prediction.message_id,
         prediction.source_folder,
@@ -198,23 +198,23 @@ imap = Imap(
     connection_str="sqlite:///email.db",
 )
 imap.update_database(quick=False)
-imap.fit_machine_learning_model_to_database(folder="some_label")
-imap.filter_messages_from_server(label="some_label", recommendation_ratio=0.9)
+imap.fit_machine_learning_model_to_database(folder="some_folder")
+imap.filter_messages_from_server(folder="some_folder", recommendation_ratio=0.9)
 ```
 `update_database()`, `fit_machine_learning_model_to_database()` and `filter_messages_from_server()`
 return the same `SyncResult`/`TrainResult`/`SortResult` objects as their `MailSorter` counterparts.
-`get_label_recommendations()` is `predict()`'s implementation - it already returns `list[Prediction]`,
+`get_folder_recommendations()` is `predict()`'s implementation - it already returns `list[Prediction]`,
 so `MailSorter.predict()` is a pure passthrough to it:
 ```python
-for prediction in imap.get_label_recommendations(
-    label="some_label", recommendation_ratio=0.9
+for prediction in imap.get_folder_recommendations(
+    folder="some_folder", recommendation_ratio=0.9
 ):
     print(prediction.message_id, prediction.recommended_folder)
 ```
 `filter_messages_from_server()` scores messages through this exact same call, then moves only the
 accepted predictions - inference and mailbox mutation are separated in code, not just by
 convention, so it is not possible to move a message without it first having gone through
-`get_label_recommendations()`.
+`get_folder_recommendations()`.
 
 ### Train and inspect the local database without a mail connection
 `train_machine_learning_models()` and `get_database_status()` are the functions behind the
@@ -227,7 +227,7 @@ train_machine_learning_models(
     connection_str="sqlite:///email.db", folder="MailSortInbox"
 )
 status = get_database_status(connection_str="sqlite:///email.db")
-print(status.message_count, status.trained_label_lst)
+print(status.message_count, status.trained_folder_lst)
 ```
 
 ## API for downstream packages

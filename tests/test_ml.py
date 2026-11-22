@@ -5,12 +5,12 @@ from unittest import mock
 import ast
 import pandas as pd
 import numpy as np
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 from sklearn.ensemble import RandomForestClassifier
 
 from mailsort.ml.encoding import (
-    remove_folder_from_labels,
+    remove_sorted_folder,
     encode_df_for_machine_learning,
     one_hot_encoding,
     _build_red_lst,
@@ -28,7 +28,7 @@ from mailsort.ml.model import (
 )
 from mailsort.ml.database import (
     MachineLearningDatabase,
-    MachineLearningLabels,
+    MachineLearningFolders,
     MachineLearningFeatures,
     MachineLearningModelChunks,
     get_machine_learning_database,
@@ -51,7 +51,7 @@ class TestMlDatabase(unittest.TestCase):
     def test_get_machine_learning_database(self):
         db_instance = get_machine_learning_database(self.engine, self.session)
         self.assertIsInstance(db_instance, MachineLearningDatabase)
-        self.assertEqual(self.session.query(MachineLearningLabels).count(), 0)
+        self.assertEqual(self.session.query(MachineLearningFolders).count(), 0)
         self.assertEqual(self.session.query(MachineLearningFeatures).count(), 0)
 
     def test_store_and_load_models_new(self):
@@ -62,7 +62,7 @@ class TestMlDatabase(unittest.TestCase):
         features = ["feature1", "feature2", "email_id"]
         self.db.store_models(models, features)
 
-        self.assertEqual(self.session.query(MachineLearningLabels).count(), 2)
+        self.assertEqual(self.session.query(MachineLearningFolders).count(), 2)
         self.assertEqual(self.session.query(MachineLearningFeatures).count(), 2)
         self.assertEqual(len(self.db.get_features()), 2)
         self.assertNotIn("email_id", self.db.get_features())
@@ -83,7 +83,7 @@ class TestMlDatabase(unittest.TestCase):
 
         loaded_models, _ = self.db.load_models()
         self.assertEqual(loaded_models["label1"].n_estimators, 20)
-        self.assertEqual(self.session.query(MachineLearningLabels).count(), 1)
+        self.assertEqual(self.session.query(MachineLearningFolders).count(), 1)
 
     def test_store_models_delete(self):
         models = {"label1": "model1", "label2": "model2"}
@@ -95,7 +95,7 @@ class TestMlDatabase(unittest.TestCase):
 
         loaded_models, _ = self.db.load_models()
         self.assertEqual(set(loaded_models.keys()), {"label1"})
-        self.assertEqual(self.session.query(MachineLearningLabels).count(), 1)
+        self.assertEqual(self.session.query(MachineLearningFolders).count(), 1)
 
     def test_store_models_in_multiple_chunks(self):
         model = {"weights": np.random.default_rng(0).random(10000).tolist()}
@@ -110,7 +110,9 @@ class TestMlDatabase(unittest.TestCase):
             ),
             1000,
         )
-        self.assertIsNone(self.session.query(MachineLearningLabels).one().random_forest)
+        self.assertIsNone(
+            self.session.query(MachineLearningFolders).one().random_forest
+        )
         loaded_models, _ = self.db.load_models()
         self.assertEqual(loaded_models, {"label1": model})
 
@@ -132,8 +134,8 @@ class TestMlDatabase(unittest.TestCase):
 
     def test_load_models_stored_without_chunks(self):
         self.session.add(
-            MachineLearningLabels(
-                label_id="label1", random_forest=pickle.dumps("legacy"), user_id=1
+            MachineLearningFolders(
+                folder_id="label1", random_forest=pickle.dumps("legacy"), user_id=1
             )
         )
         self.session.commit()
@@ -143,7 +145,9 @@ class TestMlDatabase(unittest.TestCase):
         self.db.store_models({"label1": "updated"}, [])
         loaded_models, _ = self.db.load_models()
         self.assertEqual(loaded_models, {"label1": "updated"})
-        self.assertIsNone(self.session.query(MachineLearningLabels).one().random_forest)
+        self.assertIsNone(
+            self.session.query(MachineLearningFolders).one().random_forest
+        )
 
     def test_store_features_add_and_remove(self):
         models = {"label1": "model1"}
@@ -162,41 +166,41 @@ class TestMlDatabase(unittest.TestCase):
         self.db.store_models(models, features, commit=False)
         self.session.rollback()
 
-        self.assertEqual(self.session.query(MachineLearningLabels).count(), 0)
+        self.assertEqual(self.session.query(MachineLearningFolders).count(), 0)
         self.assertEqual(self.session.query(MachineLearningFeatures).count(), 0)
 
-    def test_get_labels(self):
-        labels = [
-            MachineLearningLabels(
-                label_id="label1", random_forest=pickle.dumps("test"), user_id=1
+    def test_get_folders(self):
+        folders = [
+            MachineLearningFolders(
+                folder_id="label1", random_forest=pickle.dumps("test"), user_id=1
             ),
-            MachineLearningLabels(
-                label_id="label2", random_forest=pickle.dumps("test"), user_id=1
+            MachineLearningFolders(
+                folder_id="label2", random_forest=pickle.dumps("test"), user_id=1
             ),
-            MachineLearningLabels(
-                label_id="label3", random_forest=pickle.dumps("test"), user_id=2
-            ),
-        ]
-        self.session.add_all(labels)
-        self.session.commit()
-
-        retrieved_labels = self.db._get_labels(user_id=1)
-        self.assertEqual(set(retrieved_labels), {"label1", "label2"})
-
-    def test_get_labels_public_alias(self):
-        labels = [
-            MachineLearningLabels(
-                label_id="label1", random_forest=pickle.dumps("test"), user_id=1
-            ),
-            MachineLearningLabels(
-                label_id="label2", random_forest=pickle.dumps("test"), user_id=2
+            MachineLearningFolders(
+                folder_id="label3", random_forest=pickle.dumps("test"), user_id=2
             ),
         ]
-        self.session.add_all(labels)
+        self.session.add_all(folders)
         self.session.commit()
 
-        self.assertEqual(self.db.get_labels(user_id=1), ["label1"])
-        self.assertEqual(self.db.get_labels(user_id=2), ["label2"])
+        retrieved_folders = self.db._get_folders(user_id=1)
+        self.assertEqual(set(retrieved_folders), {"label1", "label2"})
+
+    def test_get_folders_public_alias(self):
+        folders = [
+            MachineLearningFolders(
+                folder_id="label1", random_forest=pickle.dumps("test"), user_id=1
+            ),
+            MachineLearningFolders(
+                folder_id="label2", random_forest=pickle.dumps("test"), user_id=2
+            ),
+        ]
+        self.session.add_all(folders)
+        self.session.commit()
+
+        self.assertEqual(self.db.get_folders(user_id=1), ["label1"])
+        self.assertEqual(self.db.get_folders(user_id=2), ["label2"])
 
     def test_get_features(self):
         features = [
@@ -216,7 +220,7 @@ class TestMlEncoding(unittest.TestCase):
         self.df = pd.DataFrame(
             {
                 "id": ["id1", "id2"],
-                "labels": [["Label_1", "Label_2"], ["Label_2", "Label_3"]],
+                "folders": [["Label_1", "Label_2"], ["Label_2", "Label_3"]],
                 "cc": [["cc1@test.com"], ["cc2@test.com", "cc3@another.com"]],
                 "threads": ["thread1", "thread2"],
                 "to": [["to1@test.com"], ["to2@test.com"]],
@@ -226,7 +230,7 @@ class TestMlEncoding(unittest.TestCase):
 
     def test_encode_df_for_machine_learning_no_feature_list(self):
         df_features = encode_df_for_machine_learning(
-            self.df, return_labels=False, label_prefix="labels_Label_"
+            self.df, return_folders=False, folder_prefix="labels_Label_"
         )
         self.assertIn("email_id", df_features.columns)
         self.assertEqual(len(df_features), 2)
@@ -237,8 +241,8 @@ class TestMlEncoding(unittest.TestCase):
         df_features = encode_df_for_machine_learning(
             self.df,
             feature_lst=features,
-            return_labels=False,
-            label_prefix="labels_Label_",
+            return_folders=False,
+            folder_prefix="labels_Label_",
         )
         self.assertEqual(
             set(df_features.columns),
@@ -247,26 +251,26 @@ class TestMlEncoding(unittest.TestCase):
 
     def test_encode_df_for_machine_learning_with_numpy_arrays(self):
         features = np.array(["cc_@test.com", "from_from1@test.com"])
-        labels = np.array(["labels_Label_1"])
-        df_features, df_labels = encode_df_for_machine_learning(
+        folders = np.array(["labels_Label_1"])
+        df_features, df_folders = encode_df_for_machine_learning(
             self.df,
             feature_lst=features,
-            label_lst=labels,
-            return_labels=True,
-            label_prefix="labels_Label_",
+            folder_lst=folders,
+            return_folders=True,
+            folder_prefix="labels_Label_",
         )
         self.assertEqual(
             set(df_features.columns),
             {"cc_@test.com", "from_from1@test.com", "email_id"},
         )
-        self.assertEqual(set(df_labels.columns), {"labels_Label_1"})
+        self.assertEqual(set(df_folders.columns), {"labels_Label_1"})
 
-    def test_encode_df_for_machine_learning_return_labels(self):
-        df_features, df_labels = encode_df_for_machine_learning(
-            self.df, return_labels=True, label_prefix="labels_Label_"
+    def test_encode_df_for_machine_learning_return_folders(self):
+        df_features, df_folders = encode_df_for_machine_learning(
+            self.df, return_folders=True, folder_prefix="labels_Label_"
         )
-        self.assertIn("labels_Label_1", df_labels.columns)
-        self.assertEqual(df_labels["labels_Label_1"].tolist(), [1, 0])
+        self.assertIn("labels_Label_1", df_folders.columns)
+        self.assertEqual(df_folders["labels_Label_1"].tolist(), [1, 0])
 
     def test_one_hot_encoding_no_feature_list(self):
         df_encoded = one_hot_encoding(self.df)
@@ -330,19 +334,19 @@ class TestMlModel(unittest.TestCase):
                 "feature2": [0, 1, 0],
             }
         )
-        self.df_labels = pd.DataFrame(
+        self.df_folders = pd.DataFrame(
             {
                 "labels_Label_1": [1, 0, 1],
                 "labels_Label_2": [0, 1, 0],
             }
         )
         self.models = fit_machine_learning_models(
-            self.df_features, self.df_labels, n_estimators=10, max_workers=1
+            self.df_features, self.df_folders, n_estimators=10, max_workers=1
         )
 
     def test_train_random_forest(self):
         X = self.df_features.drop("email_id", axis=1)
-        y = self.df_labels["labels_Label_1"]
+        y = self.df_folders["labels_Label_1"]
         model = train_random_forest(10, 42, True, 2, X, y)
         self.assertIsInstance(model, RandomForestClassifier)
         self.assertTrue(hasattr(model, "predict"))
@@ -352,7 +356,7 @@ class TestMlModel(unittest.TestCase):
         self.assertIsInstance(self.models["Label_1"], RandomForestClassifier)
 
     def test_get_predictions_from_machine_learning_models(self):
-        # recommendation_ratio=0.0 isolates label *selection* (the argmax) from thresholding,
+        # recommendation_ratio=0.0 isolates folder *selection* (the argmax) from thresholding,
         # since any positive-class probability - however low - clears a threshold of 0.0.
         predictions = get_predictions_from_machine_learning_models(
             self.df_features, self.models, recommendation_ratio=0.0
@@ -390,14 +394,14 @@ class TestMlModel(unittest.TestCase):
 
         self.assertEqual([entry["email_id"] for entry in scores], ["id1", "id2", "id3"])
         for entry in scores:
-            # score_messages_with_machine_learning_models always names a recommended_label, even
+            # score_messages_with_machine_learning_models always names a recommended_folder, even
             # when it does not clear the threshold (that is the whole point of the dry-run/preview
             # API) - get_predictions_from_machine_learning_models collapses that case to None, so
             # the two only agree once threshold_reached is accounted for.
-            expected_label = (
-                entry["recommended_label"] if entry["threshold_reached"] else None
+            expected_folder = (
+                entry["recommended_folder"] if entry["threshold_reached"] else None
             )
-            self.assertEqual(expected_label, predictions[entry["email_id"]])
+            self.assertEqual(expected_folder, predictions[entry["email_id"]])
             self.assertEqual(entry["threshold_reached"], entry["score"] > 0.9)
             self.assertEqual(
                 entry["threshold_reached"], predictions[entry["email_id"]] is not None
@@ -411,7 +415,7 @@ class TestMlModel(unittest.TestCase):
         )
 
         id1_entry = next(entry for entry in scores if entry["email_id"] == "id1")
-        self.assertEqual(id1_entry["recommended_label"], "Label_1")
+        self.assertEqual(id1_entry["recommended_folder"], "Label_1")
         self.assertFalse(id1_entry["threshold_reached"])
         self.assertGreater(id1_entry["score"], 0.9)
 
@@ -447,7 +451,7 @@ class TestMlModel(unittest.TestCase):
             [
                 {
                     "email_id": email_id,
-                    "recommended_label": None,
+                    "recommended_folder": None,
                     "score": 0.0,
                     "threshold_reached": False,
                     "calibrated": False,
@@ -457,7 +461,7 @@ class TestMlModel(unittest.TestCase):
         )
 
     def test_spam_example_csv_pipeline(self):
-        csv_data = """id,from,to,cc,date,threads,labels,subject,content
+        csv_data = """id,from,to,cc,date,threads,folders,subject,content
 19d8718ecb472fdb,email@spam.net,['bill.gates@outlook.com'],[],2026-04-13 09:45:17,19d8718ecb472fdb,['Label_7891913576640435048'],"bill.gates¸Your Account Has been Blocked! Your Photos and Videos will be Removed Mon,13 Apr-2026. take action!!",
 19da5e58f1ba213f,email@spam.net,['bill.gates@outlook.com'],[],2026-04-19 09:16:42,19da5e58f1ba213f,['Label_7891913576640435048'],"bill.gates, Your Cloud Account has been locked on Sun, 19 Apr 2026 09:16:42 -0400. Your photos and videos will be removed!",
 19dbf294452d4b08,email@spam.net,['bill.gates@outlook.com'],[],2026-04-24 07:00:57,19dbf294452d4b08,['Label_7891913576640435048'],Last Alert Before Account Deactivation,
@@ -484,31 +488,31 @@ class TestMlModel(unittest.TestCase):
                     "cc": entry[3],
                     "date": entry[4],
                     "threads": entry[5],
-                    "labels": entry[6],
+                    "folders": entry[6],
                     "subject": subject.strip('"'),
                     "content": content if content else None,
                 }
             )
         df = pd.DataFrame(rows)
-        for col in ["to", "cc", "labels"]:
+        for col in ["to", "cc", "folders"]:
             df[col] = df[col].apply(ast.literal_eval)
 
-        df_features, df_labels = encode_df_for_machine_learning(
-            df, return_labels=True, label_prefix="labels_Label_"
+        df_features, df_folders = encode_df_for_machine_learning(
+            df, return_folders=True, folder_prefix="labels_Label_"
         )
         df_features = df_features.loc[:, ~df_features.columns.duplicated()]
         self.assertEqual(len(df_features), 12)
         self.assertIn("email_id", df_features.columns)
-        self.assertEqual(set(df_labels.columns), {"labels_Label_7891913576640435048"})
+        self.assertEqual(set(df_folders.columns), {"labels_Label_7891913576640435048"})
 
         models = fit_machine_learning_models(
-            df_features, df_labels, n_estimators=10, max_features=2, max_workers=1
+            df_features, df_folders, n_estimators=10, max_features=2, max_workers=1
         )
         predictions = get_predictions_from_machine_learning_models(df_features, models)
         self.assertEqual(set(predictions.values()), {"Label_7891913576640435048"})
 
     def test_spam_example_csv_pipeline_parallel(self):
-        csv_data = """id,from,to,cc,date,threads,labels,subject,content
+        csv_data = """id,from,to,cc,date,threads,folders,subject,content
 19d8718ecb472fdb,email@spam.net,['bill.gates@outlook.com'],[],2026-04-13 09:45:17,19d8718ecb472fdb,['Label_7891913576640435048'],"bill.gates¸Your Account Has been Blocked! Your Photos and Videos will be Removed Mon,13 Apr-2026. take action!!",
 19da5e58f1ba213f,email@spam.net,['bill.gates@outlook.com'],[],2026-04-19 09:16:42,19da5e58f1ba213f,['Label_7891913576640435048'],"bill.gates, Your Cloud Account has been locked on Sun, 19 Apr 2026 09:16:42 -0400. Your photos and videos will be removed!",
 19dbf294452d4b08,email@spam.net,['bill.gates@outlook.com'],[],2026-04-24 07:00:57,19dbf294452d4b08,['Label_7891913576640435048'],Last Alert Before Account Deactivation,
@@ -535,36 +539,36 @@ class TestMlModel(unittest.TestCase):
                     "cc": entry[3],
                     "date": entry[4],
                     "threads": entry[5],
-                    "labels": entry[6],
+                    "folders": entry[6],
                     "subject": subject.strip('"'),
                     "content": content if content else None,
                 }
             )
         df = pd.DataFrame(rows)
-        for col in ["to", "cc", "labels"]:
+        for col in ["to", "cc", "folders"]:
             df[col] = df[col].apply(ast.literal_eval)
 
-        df_features, df_labels = encode_df_for_machine_learning(
-            df, return_labels=True, label_prefix="labels_Label_"
+        df_features, df_folders = encode_df_for_machine_learning(
+            df, return_folders=True, folder_prefix="labels_Label_"
         )
         df_features = df_features.loc[:, ~df_features.columns.duplicated()]
         self.assertEqual(len(df_features), 12)
         self.assertIn("email_id", df_features.columns)
-        self.assertEqual(set(df_labels.columns), {"labels_Label_7891913576640435048"})
+        self.assertEqual(set(df_folders.columns), {"labels_Label_7891913576640435048"})
 
         models = fit_machine_learning_models(
-            df_features, df_labels, n_estimators=10, max_features=2, max_workers=2
+            df_features, df_folders, n_estimators=10, max_features=2, max_workers=2
         )
         predictions = get_predictions_from_machine_learning_models(df_features, models)
         self.assertEqual(set(predictions.values()), {"Label_7891913576640435048"})
 
 
-class RemoveFolderFromLabelsTest(unittest.TestCase):
+class RemoveSortedFolderTest(unittest.TestCase):
     def _df(self):
         return pd.DataFrame(
             {
                 "id": ["a", "b", "c", "d"],
-                "labels": [
+                "folders": [
                     ["MailSortInbox"],
                     ["MailSortInbox", "Receipts"],
                     ["Receipts"],
@@ -575,34 +579,34 @@ class RemoveFolderFromLabelsTest(unittest.TestCase):
 
     def test_no_folder_returns_input_unchanged(self):
         df = self._df()
-        self.assertIs(remove_folder_from_labels(df, None), df)
+        self.assertIs(remove_sorted_folder(df, None), df)
 
     def test_removes_folder_and_drops_messages_only_in_it(self):
-        result = remove_folder_from_labels(self._df(), "MailSortInbox")
+        result = remove_sorted_folder(self._df(), "MailSortInbox")
 
         self.assertEqual(result["id"].tolist(), ["b", "c", "d"])
-        self.assertEqual(result["labels"].tolist(), [["Receipts"], ["Receipts"], []])
+        self.assertEqual(result["folders"].tolist(), [["Receipts"], ["Receipts"], []])
         self.assertEqual(list(result.index), [0, 1, 2])
 
     def test_does_not_modify_the_input_dataframe(self):
         df = self._df()
 
-        remove_folder_from_labels(df, "MailSortInbox")
+        remove_sorted_folder(df, "MailSortInbox")
 
-        self.assertEqual(df["labels"].tolist()[0], ["MailSortInbox"])
+        self.assertEqual(df["folders"].tolist()[0], ["MailSortInbox"])
         self.assertEqual(len(df), 4)
 
-    def test_handles_none_labels_and_numpy_arrays(self):
+    def test_handles_none_folders_and_numpy_arrays(self):
         df = pd.DataFrame(
-            {"id": ["a", "b"], "labels": [None, np.array(["X", "Inbox"])]}
+            {"id": ["a", "b"], "folders": [None, np.array(["X", "Inbox"])]}
         )
 
-        result = remove_folder_from_labels(df, "Inbox")
+        result = remove_sorted_folder(df, "Inbox")
 
         self.assertEqual(result["id"].tolist(), ["a", "b"])
-        self.assertEqual(result["labels"].tolist(), [[], ["X"]])
+        self.assertEqual(result["folders"].tolist(), [[], ["X"]])
 
-    def test_encoded_labels_no_longer_contain_the_folder(self):
+    def test_encoded_folders_no_longer_contain_the_folder(self):
         df = pd.DataFrame(
             {
                 "id": ["a", "b", "c"],
@@ -610,15 +614,48 @@ class RemoveFolderFromLabelsTest(unittest.TestCase):
                 "to": [[], [], []],
                 "cc": [[], [], []],
                 "threads": ["t1", "t2", "t3"],
-                "labels": [["Inbox"], ["Inbox", "Receipts"], ["Receipts"]],
+                "folders": [["Inbox"], ["Inbox", "Receipts"], ["Receipts"]],
             }
         )
 
-        _, labels = encode_df_for_machine_learning(
-            df=remove_folder_from_labels(df, "Inbox"),
+        _, folders = encode_df_for_machine_learning(
+            df=remove_sorted_folder(df, "Inbox"),
             feature_lst=[],
-            label_lst=[],
-            return_labels=True,
+            folder_lst=[],
+            return_folders=True,
         )
 
-        self.assertEqual(labels.columns.tolist(), ["labels_Receipts"])
+        self.assertEqual(folders.columns.tolist(), ["labels_Receipts"])
+
+
+class LegacyMachineLearningTableMigrationTest(unittest.TestCase):
+    def test_existing_legacy_tables_are_renamed_and_keep_their_data(self):
+        engine = create_engine("sqlite:///:memory:")
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "CREATE TABLE ml_labels (id INTEGER PRIMARY KEY, "
+                    "label_id VARCHAR(255), random_forest BLOB, user_id INTEGER)"
+                )
+            )
+            connection.execute(
+                text(
+                    "CREATE TABLE ml_label_chunks (id INTEGER PRIMARY KEY, "
+                    "label_id VARCHAR(255), chunk_index INTEGER, data BLOB, "
+                    "user_id INTEGER)"
+                )
+            )
+            connection.execute(
+                text("INSERT INTO ml_labels (label_id, user_id) VALUES ('Receipts', 1)")
+            )
+
+        database = get_machine_learning_database(
+            engine=engine, session=sessionmaker(bind=engine)()
+        )
+
+        table_lst = inspect(engine).get_table_names()
+        self.assertIn("ml_folders", table_lst)
+        self.assertIn("ml_folder_chunks", table_lst)
+        self.assertNotIn("ml_labels", table_lst)
+        self.assertNotIn("ml_label_chunks", table_lst)
+        self.assertEqual(database.get_folders(), ["Receipts"])

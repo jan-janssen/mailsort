@@ -41,8 +41,8 @@ class MySQLSchemaTest(TestCase):
             "email_content.email_id",
             "email_threads.email_id",
             "email_threads.thread_id",
-            "email_labels.email_id",
-            "email_labels.label_id",
+            "email_folders.email_id",
+            "email_folders.folder_id",
             "email_to.email_id",
             "email_cc.email_id",
             "email_from.email_id",
@@ -59,11 +59,11 @@ class MySQLSchemaTest(TestCase):
 
     def test_machine_learning_column_types(self):
         column_types = _mysql_column_types(MachineLearningBase)
-        self.assertEqual(column_types["ml_labels.label_id"], "VARCHAR(255)")
-        self.assertEqual(column_types["ml_labels.random_forest"], "LONGBLOB")
+        self.assertEqual(column_types["ml_folders.folder_id"], "VARCHAR(255)")
+        self.assertEqual(column_types["ml_folders.random_forest"], "LONGBLOB")
         self.assertEqual(column_types["ml_features.feature"], "TEXT")
-        self.assertEqual(column_types["ml_label_chunks.label_id"], "VARCHAR(255)")
-        self.assertEqual(column_types["ml_label_chunks.data"], "LONGBLOB")
+        self.assertEqual(column_types["ml_folder_chunks.folder_id"], "VARCHAR(255)")
+        self.assertEqual(column_types["ml_folder_chunks.data"], "LONGBLOB")
 
     def test_create_table_compiles_for_mysql(self):
         dialect = mysql.dialect()
@@ -131,7 +131,7 @@ class LongValuesRoundTripTest(TestCase):
                     "from": "sender@example.com",
                     "id": "unicode-email",
                     "cc": ["café@example.com"],
-                    "labels": ["重要📬"],
+                    "folders": ["重要📬"],
                     "subject": "こんにちは 🌟",
                     "threads": "thread-😀",
                     "to": ["recipient📬@example.com"],
@@ -144,7 +144,7 @@ class LongValuesRoundTripTest(TestCase):
         df_stored = database.get_all_emails()
         self.assertEqual(df_stored["subject"].values[0], "こんにちは 🌟")
         self.assertEqual(df_stored["content"].values[0], "Hello 🌍 — café")
-        self.assertEqual(df_stored["labels"].values[0], ["重要📬"])
+        self.assertEqual(df_stored["folders"].values[0], ["重要📬"])
         self.assertEqual(df_stored["threads"].values[0], "thread-😀")
         self.assertEqual(df_stored["to"].values[0], ["recipient📬@example.com"])
 
@@ -160,7 +160,7 @@ class LongValuesRoundTripTest(TestCase):
                     "from": "sender@server.net",
                     "id": "myid123",
                     "cc": to_lst,
-                    "labels": ["important"],
+                    "folders": ["important"],
                     "subject": subject,
                     "threads": "abc123",
                     "to": to_lst,

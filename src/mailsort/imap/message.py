@@ -45,7 +45,7 @@ class Message(AbstractMessage):
     def get_cc(self):
         return self._split_addresses(self._message.get_all("Cc"))
 
-    def get_label_ids(self):
+    def get_folder_ids(self):
         return [self._folder]
 
     def get_subject(self):

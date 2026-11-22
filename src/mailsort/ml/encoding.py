@@ -7,56 +7,58 @@ import pandas
 def encode_df_for_machine_learning(
     df: pandas.DataFrame,
     feature_lst: list[str] | np.ndarray | None = None,
-    label_lst: list[str] | np.ndarray | None = None,
-    return_labels: bool = False,
-    label_prefix: str = "labels_",
+    folder_lst: list[str] | np.ndarray | None = None,
+    return_folders: bool = False,
+    folder_prefix: str = "labels_",
 ) -> pandas.DataFrame | tuple[pandas.DataFrame, pandas.DataFrame]:
     """
-    Encode a given dataframe for machine learning. Either based on a list of existing features and labels or by
-    generating the features and labels from the dataframe. By default, only the dataframe with features is returned
-    optionally also the dataframe with labels can be returned.
+    Encode a given dataframe for machine learning. Either based on a list of existing features and folders or by
+    generating the features and folders from the dataframe. By default, only the dataframe with features is returned
+    optionally also the dataframe with folders can be returned.
 
     Args:
         df (pandas.DataFrame): DataFrame with emails
         feature_lst (list): list of features to encode, if no list is provided the features are generated from the
                             Dataframe
-        label_lst (list): list of labels to encode, if no list is provided the labels are generated from the Dataframe
-        return_labels (boolean): optional flag to return the dataframe with labels
+        folder_lst (list): list of folders to encode, if no list is provided the folders are generated from the Dataframe
+        return_folders (boolean): optional flag to return the dataframe with folders
 
     Returns:
-        pandas.DataFrame/ list: Dataframe with features and optionally also the dataframe with labels
+        pandas.DataFrame/ list: Dataframe with features and optionally also the dataframe with folders
     """
     if feature_lst is None:
         feature_lst = []
-    if label_lst is None:
-        label_lst = []
+    if folder_lst is None:
+        folder_lst = []
     if isinstance(feature_lst, np.ndarray):
         feature_lst = feature_lst.tolist()
-    if isinstance(label_lst, np.ndarray):
-        label_lst = label_lst.tolist()
+    if isinstance(folder_lst, np.ndarray):
+        folder_lst = folder_lst.tolist()
     combined_lst = [
-        feature for feature in feature_lst + label_lst if feature != "email_id"
+        feature for feature in feature_lst + folder_lst if feature != "email_id"
     ]
     df_all_encode = one_hot_encoding(df=df, feature_lst=combined_lst)
     if len(feature_lst) == 0:
         feature_lst = [
             feature
             for feature in df_all_encode.columns.values
-            if "labels_" not in feature
+            if folder_prefix not in feature
         ]
     feature_lst += ["email_id"]
     df_all_features = df_all_encode[feature_lst]
-    if not return_labels:
+    if not return_folders:
         return df_all_features
     else:
-        if len(label_lst) == 0:
-            label_lst = [
-                label for label in df_all_encode.columns.values if label_prefix in label
+        if len(folder_lst) == 0:
+            folder_lst = [
+                folder
+                for folder in df_all_encode.columns.values
+                if folder_prefix in folder
             ]
-        return df_all_features, df_all_encode[label_lst]
+        return df_all_features, df_all_encode[folder_lst]
 
 
-def remove_folder_from_labels(
+def remove_sorted_folder(
     df: pandas.DataFrame, folder: str | None = None
 ) -> pandas.DataFrame:
     """
@@ -67,12 +69,12 @@ def remove_folder_from_labels(
     would only learn "looks unsorted" and compete with - and usually outscore - the real target
     folders.
 
-    The folder is removed from every message's labels. Messages that were *only* in that folder
+    The folder is removed from every message's folders. Messages that were *only* in that folder
     are dropped entirely: they carry no information about where a message belongs and would
     otherwise act as negative examples for every real folder.
 
     Args:
-        df (pandas.DataFrame): DataFrame with emails, including a "labels" column of folder lists
+        df (pandas.DataFrame): DataFrame with emails, including a "folders" column of folder lists
         folder (str): folder to remove - if None, df is returned unchanged
 
     Returns:
@@ -81,17 +83,18 @@ def remove_folder_from_labels(
     if folder is None:
         return df
     original_lst = [
-        list(labels) if labels is not None else [] for labels in df["labels"].values
+        list(row_folders) if row_folders is not None else []
+        for row_folders in df["folders"].values
     ]
     filtered_lst = [
-        [label for label in labels if label != folder] for labels in original_lst
+        [name for name in row_folders if name != folder] for row_folders in original_lst
     ]
     keep = [
         len(filtered) > 0 or len(original) == 0
         for original, filtered in zip(original_lst, filtered_lst, strict=True)
     ]
     df_new = df.copy()
-    df_new["labels"] = pandas.Series(filtered_lst, index=df.index, dtype=object)
+    df_new["folders"] = pandas.Series(filtered_lst, index=df.index, dtype=object)
     return df_new[keep].reset_index(drop=True)
 
 
@@ -110,28 +113,30 @@ def one_hot_encoding(
     """
     if feature_lst is None:
         feature_lst = []
-    all_binary_values, all_labels = _encoding_helper(df=df)
+    all_binary_values, all_folders = _encoding_helper(df=df)
     if len(feature_lst) == 0:
-        df_new = pandas.DataFrame(all_binary_values, columns=all_labels)
+        df_new = pandas.DataFrame(all_binary_values, columns=all_folders)
     else:
-        labels_to_drop = [label for label in all_labels if label not in feature_lst]
-        labels_to_add = [label for label in feature_lst if label not in all_labels]
+        folders_to_drop = [
+            folder for folder in all_folders if folder not in feature_lst
+        ]
+        folders_to_add = [folder for folder in feature_lst if folder not in all_folders]
         data_stack = np.hstack(
-            (all_binary_values, np.zeros((len(df), len(labels_to_add))))
+            (all_binary_values, np.zeros((len(df), len(folders_to_add))))
         )
-        columns = np.array(all_labels + labels_to_add)
+        columns = np.array(all_folders + folders_to_add)
         df_new = pandas.DataFrame(
             data_stack,
             columns=columns,
         )
-        df_new.drop(labels_to_drop, inplace=True, axis=1)
+        df_new.drop(folders_to_drop, inplace=True, axis=1)
     df_new["email_id"] = df.id.values
     return df_new.sort_index(axis=1)
 
 
 # Helper functions for one hot encoding
 def _encoding_helper(df: pandas.DataFrame) -> tuple[np.ndarray, list[str]]:
-    labels_red_lst = _build_red_lst(df_column=df.labels.values)
+    folders_red_lst = _build_red_lst(df_column=df["folders"].values)
     cc_red_lst = _build_red_lst(df_column=df.cc.values)
     thread_red_lst = df["threads"].unique()
     to_red_lst = _build_red_lst(df_column=df.to.values)
@@ -142,8 +147,8 @@ def _encoding_helper(df: pandas.DataFrame) -> tuple[np.ndarray, list[str]]:
             if email is not None and isinstance(email, str) and "@" in email
         }
     )
-    dict_labels_lst = _list_entry_df(
-        red_lst=labels_red_lst, value_lst=df["labels"].values
+    dict_folders_lst = _list_entry_df(
+        red_lst=folders_red_lst, value_lst=df["folders"].values
     )
     dict_cc_lst = _list_entry_email_df(red_lst=cc_red_lst, value_lst=df["cc"].values)
     dict_from_lst = _single_entry_email_df(
@@ -154,16 +159,17 @@ def _encoding_helper(df: pandas.DataFrame) -> tuple[np.ndarray, list[str]]:
     )
     dict_to_lst = _list_entry_email_df(red_lst=to_red_lst, value_lst=df["to"].values)
     all_binary_values = np.hstack(
-        (dict_labels_lst, dict_cc_lst, dict_from_lst, dict_threads_lst, dict_to_lst)
+        (dict_folders_lst, dict_cc_lst, dict_from_lst, dict_threads_lst, dict_to_lst)
     )
-    all_labels = (
-        _get_lst_without_none(lst=labels_red_lst, column="labels")
+    all_folders = (
+        # The one-hot encoded folder columns keep the "labels_" prefix (see folder_prefix)
+        _get_lst_without_none(lst=folders_red_lst, column="labels")
         + _get_lst_without_none(lst=cc_red_lst, column="cc")
         + _get_lst_without_none(lst=from_red_lst, column="from")
         + _get_lst_without_none(lst=thread_red_lst, column="threads")
         + _get_lst_without_none(lst=to_red_lst, column="to")
     )
-    return all_binary_values, all_labels
+    return all_binary_values, all_folders
 
 
 def _build_red_lst(df_column: np.ndarray) -> list[str]:

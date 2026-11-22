@@ -46,7 +46,7 @@ class SyncCommandTest(TestCase):
             email_download_format="metadata",
         )
         imap_instance.update_database.assert_called_once_with(
-            quick=False, label_lst=None
+            quick=False, folder_lst=None
         )
         imap_instance.close.assert_called_once()
 
@@ -73,7 +73,7 @@ class SyncCommandTest(TestCase):
 
         self.assertEqual(exit_code, _EXIT_OK)
         imap_instance.update_database.assert_called_once_with(
-            quick=True, label_lst=["Inbox", "Archive"]
+            quick=True, folder_lst=["Inbox", "Archive"]
         )
 
     @patch("mailsort.__main__.Imap")
@@ -188,7 +188,7 @@ class PredictCommandTest(TestCase):
     @patch("mailsort.__main__.Imap")
     def test_predict_prints_recommendations_and_never_moves_anything(self, imap_cls):
         imap_instance = imap_cls.return_value
-        imap_instance.get_label_recommendations.return_value = [
+        imap_instance.get_folder_recommendations.return_value = [
             Prediction(
                 message_id="MailSortInbox\x1f1",
                 source_folder="MailSortInbox",
@@ -216,8 +216,8 @@ class PredictCommandTest(TestCase):
             )
 
         self.assertEqual(exit_code, _EXIT_OK)
-        imap_instance.get_label_recommendations.assert_called_once_with(
-            label="MailSortInbox", recommendation_ratio=0.9, label_prefix="labels_"
+        imap_instance.get_folder_recommendations.assert_called_once_with(
+            folder="MailSortInbox", recommendation_ratio=0.9, folder_prefix="labels_"
         )
         imap_instance.filter_messages_from_server.assert_not_called()
         printed = "\n".join(str(call.args[0]) for call in print_mock.call_args_list)
@@ -227,7 +227,7 @@ class PredictCommandTest(TestCase):
     @patch("mailsort.__main__.Imap")
     def test_predict_forwards_custom_ratio_and_prefix(self, imap_cls):
         imap_instance = imap_cls.return_value
-        imap_instance.get_label_recommendations.return_value = []
+        imap_instance.get_folder_recommendations.return_value = []
 
         command_line_parser(
             [
@@ -241,13 +241,13 @@ class PredictCommandTest(TestCase):
                 "secret",
                 "--recommendation-ratio",
                 "0.5",
-                "--label-prefix",
+                "--folder-prefix",
                 "custom_",
             ]
         )
 
-        imap_instance.get_label_recommendations.assert_called_once_with(
-            label="Inbox", recommendation_ratio=0.5, label_prefix="custom_"
+        imap_instance.get_folder_recommendations.assert_called_once_with(
+            folder="Inbox", recommendation_ratio=0.5, folder_prefix="custom_"
         )
 
     @patch("mailsort.__main__.Imap")
@@ -287,7 +287,7 @@ class SortCommandTest(TestCase):
 
         self.assertEqual(exit_code, _EXIT_OK)
         imap_instance.filter_messages_from_server.assert_called_once_with(
-            label="MailSortInbox", recommendation_ratio=0.9, label_prefix="labels_"
+            folder="MailSortInbox", recommendation_ratio=0.9, folder_prefix="labels_"
         )
         imap_instance.close.assert_called_once()
         printed = "\n".join(str(call.args[0]) for call in print_mock.call_args_list)
@@ -310,7 +310,7 @@ class StatusCommandTest(TestCase):
             message_count=12,
             active_message_count=10,
             deleted_message_count=2,
-            trained_label_lst=["Inbox", "Receipts"],
+            trained_folder_lst=["Inbox", "Receipts"],
             feature_count=42,
         )
 
@@ -335,7 +335,7 @@ class StatusCommandTest(TestCase):
             message_count=0,
             active_message_count=0,
             deleted_message_count=0,
-            trained_label_lst=[],
+            trained_folder_lst=[],
             feature_count=0,
         )
 
@@ -362,7 +362,7 @@ class EvaluateCommandTest(TestCase):
             train_message_count=80,
             test_message_count=2,
             excluded_test_message_count=0,
-            trained_label_lst=["Inbox", "Spam"],
+            trained_folder_lst=["Inbox", "Spam"],
             calibration_status={"Inbox": True, "Spam": False},
             scored_message_lst=[
                 ScoredTestMessage(
@@ -452,7 +452,7 @@ class EvaluateCommandTest(TestCase):
             train_message_count=0,
             test_message_count=0,
             excluded_test_message_count=0,
-            trained_label_lst=[],
+            trained_folder_lst=[],
             calibration_status={},
             scored_message_lst=[],
         )
@@ -476,7 +476,7 @@ class EvaluateCommandTest(TestCase):
 
 
 class FormatStatusTableTest(TestCase):
-    def test_no_trained_labels(self):
+    def test_no_trained_folders(self):
         table = _format_status_table(
             DatabaseStatus(
                 connection_str="sqlite:///email.db",
@@ -484,13 +484,13 @@ class FormatStatusTableTest(TestCase):
                 message_count=0,
                 active_message_count=0,
                 deleted_message_count=0,
-                trained_label_lst=[],
+                trained_folder_lst=[],
                 feature_count=0,
             )
         )
         self.assertIn("none", table)
 
-    def test_lists_trained_labels(self):
+    def test_lists_trained_folders(self):
         table = _format_status_table(
             DatabaseStatus(
                 connection_str="sqlite:///email.db",
@@ -498,7 +498,7 @@ class FormatStatusTableTest(TestCase):
                 message_count=5,
                 active_message_count=4,
                 deleted_message_count=1,
-                trained_label_lst=["Inbox", "Spam"],
+                trained_folder_lst=["Inbox", "Spam"],
                 feature_count=7,
             )
         )
@@ -545,7 +545,7 @@ class IdentificationArgumentTest(TestCase):
             email_download_format="metadata",
         )
         imap_instance.update_database.assert_called_once_with(
-            quick=False, label_lst=None
+            quick=False, folder_lst=None
         )
 
     def test_no_subcommand_prints_help(self):

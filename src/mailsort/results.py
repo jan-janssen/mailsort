@@ -39,8 +39,8 @@ class SyncResult:
 
     Attributes:
         new_message_count (int): messages downloaded and stored for the first time
-        updated_message_count (int): already-known messages whose labels changed - always 0
-            when the sync was run with quick=True, since that mode skips relabeling
+        updated_message_count (int): already-known messages whose folders changed - always 0
+            when the sync was run with quick=True, since that mode skips reassigning
         deleted_message_count (int): already-known messages marked deleted because they no
             longer exist on the server - always 0 when the sync was run with quick=True
     """
@@ -58,15 +58,15 @@ class TrainResult:
     See AbstractMailBox.fit_machine_learning_model_to_database() / mailsort.MailSorter.train().
 
     Attributes:
-        trained_label_lst (list[str]): folders/labels a model was trained for, sorted
+        trained_folder_lst (list[str]): folders/folders a model was trained for, sorted
     """
 
-    trained_label_lst: list[str]
+    trained_folder_lst: list[str]
 
     @property
     def model_count(self) -> int:
         """Number of per-folder models trained."""
-        return len(self.trained_label_lst)
+        return len(self.trained_folder_lst)
 
 
 @dataclass(frozen=True)
@@ -76,7 +76,7 @@ class Prediction:
     side-effect-free representation of inference, deliberately kept separate from mailbox
     mutation.
 
-    See AbstractMailBox.get_label_recommendations() / mailsort.MailSorter.predict(), which
+    See AbstractMailBox.get_folder_recommendations() / mailsort.MailSorter.predict(), which
     produce these; producing a Prediction never moves, deletes or otherwise modifies anything on
     the mail server. Moving messages (AbstractMailBox.filter_messages_from_server() /
     mailsort.MailSorter.sort()) consumes the `accepted` Predictions from that same inference step
@@ -127,9 +127,9 @@ class SortResult:
     See AbstractMailBox.filter_messages_from_server() / mailsort.MailSorter.sort().
 
     Attributes:
-        moved_lst (list[tuple[str, str]]): (message_id, label) pairs actually moved - a subset
+        moved_lst (list[tuple[str, str]]): (message_id, folder) pairs actually moved - a subset
             of the predictions that reached the recommendation threshold, since a message already
-            sitting in its recommended label is left alone
+            sitting in its recommended folder is left alone
     """
 
     moved_lst: list[tuple[str, str]]

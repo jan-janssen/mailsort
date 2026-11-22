@@ -17,7 +17,7 @@ from mailsort.ml import (
     encode_df_for_machine_learning,
     fit_machine_learning_models,
     get_machine_learning_database,
-    remove_folder_from_labels,
+    remove_sorted_folder,
 )
 
 
@@ -44,7 +44,7 @@ def train_machine_learning_models(
         folder (str): the folder that gets sorted, e.g. "MailSortInbox". It is always ignored
             during training - no model is trained for it and messages found only in it are not
             used as training data - because no message is meant to stay in it. See
-            mailsort.ml.encoding.remove_folder_from_labels()
+            mailsort.ml.encoding.remove_sorted_folder()
         db_user_id (int): database user id - default: 1
         n_estimators (int): number of estimators
         max_features (int): number of features
@@ -71,9 +71,9 @@ def train_machine_learning_models(
         df_all = db_email.get_all_emails(
             include_deleted=include_deleted, user_id=db_user_id
         )
-        df_all = remove_folder_from_labels(df=df_all, folder=folder)
-        df_all_features, df_all_labels = encode_df_for_machine_learning(
-            df=df_all, feature_lst=[], label_lst=[], return_labels=True
+        df_all = remove_sorted_folder(df=df_all, folder=folder)
+        df_all_features, df_all_folders = encode_df_for_machine_learning(
+            df=df_all, feature_lst=[], folder_lst=[], return_folders=True
         )
         df_all_features = df_all_features.loc[
             :, ~df_all_features.columns.duplicated()
@@ -83,7 +83,7 @@ def train_machine_learning_models(
         )
         model_dict = fit_machine_learning_models(
             df_all_features=df_all_features,
-            df_all_labels=df_all_labels,
+            df_all_folders=df_all_folders,
             n_estimators=n_estimators,
             max_features=max_features,
             random_state=random_state,

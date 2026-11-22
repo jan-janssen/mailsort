@@ -68,13 +68,13 @@ class TestImapMailBase(TestCase):
         service.list.return_value = ("OK", folders)
         return service
 
-    def test_get_label_translate_dict_skips_noselect(self):
+    def test_get_folder_translate_dict_skips_noselect(self):
         service = self._create_mock_service_with_folders()
         mail = ImapMailBase(mail_service=service)
 
-        self.assertEqual(sorted(mail.labels), ["INBOX", "MailSortInbox"])
+        self.assertEqual(sorted(mail.folders), ["INBOX", "MailSortInbox"])
 
-    def test_get_label_translate_dict_skips_special_use_attributes(self):
+    def test_get_folder_translate_dict_skips_special_use_attributes(self):
         service = self._create_mock_service_with_folders(
             folders=[
                 b'(\\HasNoChildren \\Trash) "/" "Papierkorb"',
@@ -89,9 +89,9 @@ class TestImapMailBase(TestCase):
         )
         mail = ImapMailBase(mail_service=service)
 
-        self.assertEqual(mail.labels, ["MailSortInbox"])
+        self.assertEqual(mail.folders, ["MailSortInbox"])
 
-    def test_get_label_translate_dict_skips_special_names_without_attributes(self):
+    def test_get_folder_translate_dict_skips_special_names_without_attributes(self):
         service = self._create_mock_service_with_folders(
             folders=[
                 b'(\\HasNoChildren) "/" "Trash"',
@@ -107,9 +107,9 @@ class TestImapMailBase(TestCase):
         )
         mail = ImapMailBase(mail_service=service)
 
-        self.assertEqual(mail.labels, ["MailSortInbox"])
+        self.assertEqual(mail.folders, ["MailSortInbox"])
 
-    def test_get_label_translate_dict_keeps_custom_folders(self):
+    def test_get_folder_translate_dict_keeps_custom_folders(self):
         service = self._create_mock_service_with_folders(
             folders=[
                 b'(\\HasNoChildren) "/" "MailSortInbox"',
@@ -122,7 +122,7 @@ class TestImapMailBase(TestCase):
         mail = ImapMailBase(mail_service=service)
 
         self.assertEqual(
-            sorted(mail.labels),
+            sorted(mail.folders),
             [
                 "Archived Projects",
                 "INBOX",
@@ -132,42 +132,42 @@ class TestImapMailBase(TestCase):
             ],
         )
 
-    def test_get_label_translate_dict_accepts_nil_delimiter(self):
+    def test_get_folder_translate_dict_accepts_nil_delimiter(self):
         service = self._create_mock_service_with_folders(
             folders=[b"(\\HasNoChildren) NIL INBOX"]
         )
         mail = ImapMailBase(mail_service=service)
 
-        self.assertEqual(mail.labels, ["INBOX"])
+        self.assertEqual(mail.folders, ["INBOX"])
 
-    def test_get_label_translate_dict_accepts_literal_name_tuple(self):
+    def test_get_folder_translate_dict_accepts_literal_name_tuple(self):
         service = self._create_mock_service_with_folders(
             folders=[(b'(\\HasNoChildren) "/" {11}', b"MailSortBox"), b")"]
         )
         mail = ImapMailBase(mail_service=service)
 
-        self.assertEqual(mail.labels, ["MailSortBox"])
+        self.assertEqual(mail.folders, ["MailSortBox"])
 
-    def test_get_label_translate_dict_handles_empty_mailbox_list(self):
+    def test_get_folder_translate_dict_handles_empty_mailbox_list(self):
         service = self._create_mock_service_with_folders(folders=[None])
         mail = ImapMailBase(mail_service=service)
 
-        self.assertEqual(mail.labels, [])
+        self.assertEqual(mail.folders, [])
 
-    def test_get_label_translate_dict_returns_empty_on_list_failure(self):
+    def test_get_folder_translate_dict_returns_empty_on_list_failure(self):
         service = self._create_mock_service_with_folders()
         service.list.return_value = ("NO", None)
         mail = ImapMailBase(mail_service=service)
 
-        self.assertEqual(mail.labels, [])
+        self.assertEqual(mail.folders, [])
 
-    def test_get_label_translate_dict_skips_unparseable_entries(self):
+    def test_get_folder_translate_dict_skips_unparseable_entries(self):
         service = self._create_mock_service_with_folders(
             folders=[b"total garbage", b'(\\HasNoChildren) "/" "MailSortInbox"']
         )
         mail = ImapMailBase(mail_service=service)
 
-        self.assertEqual(mail.labels, ["MailSortInbox"])
+        self.assertEqual(mail.folders, ["MailSortInbox"])
 
     def test_parse_list_entry_returns_none_for_unparseable_input(self):
         self.assertIsNone(ImapMailBase._parse_list_entry(None))
@@ -196,13 +196,13 @@ class TestImapMailBase(TestCase):
         service.uid.return_value = ("OK", [b"1 2"])
         mail = ImapMailBase(mail_service=service)
 
-        ids = mail._search_email_on_server(label_lst=["INBOX"], only_message_ids=True)
+        ids = mail._search_email_on_server(folder_lst=["INBOX"], only_message_ids=True)
 
         service.select.assert_called_once_with('"INBOX"')
         service.uid.assert_called_once_with("search", None, "ALL")
         self.assertEqual(ids, ["INBOX\x1f1", "INBOX\x1f2"])
 
-    def test_search_email_on_server_all_folders_when_no_label(self):
+    def test_search_email_on_server_all_folders_when_no_folder(self):
         service = self._create_mock_service_with_folders()
         service.select.return_value = ("OK", [b"1"])
         service.uid.return_value = ("OK", [b"5"])
@@ -229,7 +229,7 @@ class TestImapMailBase(TestCase):
         service.uid.return_value = ("OK", [b"1 2"])
         mail = ImapMailBase(mail_service=service)
 
-        result = mail._search_email_on_server(label_lst=["INBOX"])
+        result = mail._search_email_on_server(folder_lst=["INBOX"])
 
         self.assertEqual(result, [{"id": "INBOX\x1f1"}, {"id": "INBOX\x1f2"}])
 
@@ -238,7 +238,7 @@ class TestImapMailBase(TestCase):
         service.select.return_value = ("NO", [b"failed"])
         mail = ImapMailBase(mail_service=service)
 
-        ids = mail._search_email_on_server(label_lst=["INBOX"], only_message_ids=True)
+        ids = mail._search_email_on_server(folder_lst=["INBOX"], only_message_ids=True)
 
         service.uid.assert_not_called()
         self.assertEqual(ids, [])
@@ -249,7 +249,7 @@ class TestImapMailBase(TestCase):
         service.uid.return_value = ("NO", [None])
         mail = ImapMailBase(mail_service=service)
 
-        ids = mail._search_email_on_server(label_lst=["INBOX"], only_message_ids=True)
+        ids = mail._search_email_on_server(folder_lst=["INBOX"], only_message_ids=True)
 
         self.assertEqual(ids, [])
 
@@ -259,7 +259,7 @@ class TestImapMailBase(TestCase):
         service.uid.return_value = ("OK", [None])
         mail = ImapMailBase(mail_service=service)
 
-        ids = mail._search_email_on_server(label_lst=["INBOX"], only_message_ids=True)
+        ids = mail._search_email_on_server(folder_lst=["INBOX"], only_message_ids=True)
 
         self.assertEqual(ids, [])
 
@@ -295,39 +295,39 @@ class TestImapMailBase(TestCase):
         with self.assertRaises(RuntimeError):
             mail._get_message_detail(message_id="INBOX\x1f7")
 
-    def test_get_labels_for_email_from_composite_id(self):
+    def test_get_folders_for_email_from_composite_id(self):
         service = self._create_mock_service_with_folders()
         mail = ImapMailBase(mail_service=service)
 
-        self.assertEqual(mail._get_labels_for_email("INBOX\x1f7"), ["INBOX"])
+        self.assertEqual(mail._get_folders_for_email("INBOX\x1f7"), ["INBOX"])
 
-    def test_modify_message_labels_uses_move_when_supported(self):
+    def test_modify_message_folders_uses_move_when_supported(self):
         service = self._create_mock_service_with_folders()
         service.select.return_value = ("OK", [b"1"])
         service.uid.return_value = ("OK", [b"1"])
         mail = ImapMailBase(mail_service=service)
 
-        mail._modify_message_labels(
+        mail._modify_message_folders(
             message_id="INBOX\x1f7",
-            label_id_remove_lst=["INBOX"],
-            label_id_add_lst=["MailSortInbox"],
+            folder_id_remove_lst=["INBOX"],
+            folder_id_add_lst=["MailSortInbox"],
         )
 
         service.select.assert_called_once_with('"INBOX"')
         service.uid.assert_called_once_with("move", "7", '"MailSortInbox"')
         service.expunge.assert_not_called()
 
-    def test_modify_message_labels_falls_back_to_copy_delete(self):
+    def test_modify_message_folders_falls_back_to_copy_delete(self):
         service = self._create_mock_service_with_folders()
         service.capabilities = ["IMAP4rev1"]
         service.select.return_value = ("OK", [b"1"])
         service.uid.return_value = ("OK", [b"1"])
         mail = ImapMailBase(mail_service=service)
 
-        mail._modify_message_labels(
+        mail._modify_message_folders(
             message_id="INBOX\x1f7",
-            label_id_remove_lst=["INBOX"],
-            label_id_add_lst=["MailSortInbox"],
+            folder_id_remove_lst=["INBOX"],
+            folder_id_add_lst=["MailSortInbox"],
         )
 
         self.assertEqual(
@@ -339,17 +339,17 @@ class TestImapMailBase(TestCase):
         )
         service.expunge.assert_called_once()
 
-    def test_modify_message_labels_uses_uid_expunge_with_uidplus(self):
+    def test_modify_message_folders_uses_uid_expunge_with_uidplus(self):
         service = self._create_mock_service_with_folders()
         service.capabilities = ["IMAP4rev1", "UIDPLUS"]
         service.select.return_value = ("OK", [b"1"])
         service.uid.return_value = ("OK", [b"1"])
         mail = ImapMailBase(mail_service=service)
 
-        mail._modify_message_labels(
+        mail._modify_message_folders(
             message_id="INBOX\x1f7",
-            label_id_remove_lst=["INBOX"],
-            label_id_add_lst=["MailSortInbox"],
+            folder_id_remove_lst=["INBOX"],
+            folder_id_add_lst=["MailSortInbox"],
         )
 
         self.assertEqual(
@@ -362,28 +362,28 @@ class TestImapMailBase(TestCase):
         )
         service.expunge.assert_not_called()
 
-    def test_modify_message_labels_raises_when_select_fails(self):
+    def test_modify_message_folders_raises_when_select_fails(self):
         service = self._create_mock_service_with_folders()
         service.select.return_value = ("NO", [b"failed"])
         mail = ImapMailBase(mail_service=service)
 
         with self.assertRaises(RuntimeError):
-            mail._modify_message_labels(
-                message_id="INBOX\x1f7", label_id_add_lst=["MailSortInbox"]
+            mail._modify_message_folders(
+                message_id="INBOX\x1f7", folder_id_add_lst=["MailSortInbox"]
             )
 
-    def test_modify_message_labels_raises_when_move_fails(self):
+    def test_modify_message_folders_raises_when_move_fails(self):
         service = self._create_mock_service_with_folders()
         service.select.return_value = ("OK", [b"1"])
         service.uid.return_value = ("NO", [None])
         mail = ImapMailBase(mail_service=service)
 
         with self.assertRaises(RuntimeError):
-            mail._modify_message_labels(
-                message_id="INBOX\x1f7", label_id_add_lst=["MailSortInbox"]
+            mail._modify_message_folders(
+                message_id="INBOX\x1f7", folder_id_add_lst=["MailSortInbox"]
             )
 
-    def test_modify_message_labels_raises_when_copy_fails(self):
+    def test_modify_message_folders_raises_when_copy_fails(self):
         service = self._create_mock_service_with_folders()
         service.capabilities = ["IMAP4rev1"]
         service.select.return_value = ("OK", [b"1"])
@@ -391,15 +391,15 @@ class TestImapMailBase(TestCase):
         mail = ImapMailBase(mail_service=service)
 
         with self.assertRaises(RuntimeError):
-            mail._modify_message_labels(
-                message_id="INBOX\x1f7", label_id_add_lst=["MailSortInbox"]
+            mail._modify_message_folders(
+                message_id="INBOX\x1f7", folder_id_add_lst=["MailSortInbox"]
             )
 
-    def test_modify_message_labels_noop_without_target(self):
+    def test_modify_message_folders_noop_without_target(self):
         service = self._create_mock_service_with_folders()
         mail = ImapMailBase(mail_service=service)
 
-        mail._modify_message_labels(message_id="INBOX\x1f7")
+        mail._modify_message_folders(message_id="INBOX\x1f7")
 
         service.select.assert_not_called()
 
@@ -457,7 +457,7 @@ class TestImapMailBase(TestCase):
         service = self._create_mock_service_with_folders()
 
         with ImapMailBase(mail_service=service) as mail:
-            self.assertEqual(sorted(mail.labels), ["INBOX", "MailSortInbox"])
+            self.assertEqual(sorted(mail.folders), ["INBOX", "MailSortInbox"])
             service.logout.assert_not_called()
 
         service.logout.assert_called_once_with()
@@ -468,7 +468,7 @@ class TestImapMailBase(TestCase):
         service.select.side_effect = imaplib.IMAP4.abort("connection lost")
 
         with self.assertRaises(imaplib.IMAP4.abort):
-            mail._search_email_on_server(label_lst=["INBOX"], only_message_ids=True)
+            mail._search_email_on_server(folder_lst=["INBOX"], only_message_ids=True)
 
     def test_search_reconnects_and_retries_once_after_abort(self):
         dead_service = self._create_mock_service_with_folders()
@@ -478,7 +478,7 @@ class TestImapMailBase(TestCase):
         fresh_service.uid.return_value = ("OK", [b"3"])
         mail = ReconnectingImapMailBase(service_lst=[dead_service, fresh_service])
 
-        ids = mail._search_email_on_server(label_lst=["INBOX"], only_message_ids=True)
+        ids = mail._search_email_on_server(folder_lst=["INBOX"], only_message_ids=True)
 
         self.assertEqual(mail.reconnect_count, 1)
         self.assertEqual(ids, ["INBOX\x1f3"])
@@ -508,7 +508,7 @@ class TestImapMailBase(TestCase):
         )
 
         with self.assertRaises(imaplib.IMAP4.abort):
-            mail._search_email_on_server(label_lst=["INBOX"], only_message_ids=True)
+            mail._search_email_on_server(folder_lst=["INBOX"], only_message_ids=True)
 
         self.assertEqual(mail.reconnect_count, 1)
 

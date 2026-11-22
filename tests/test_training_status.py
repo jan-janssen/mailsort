@@ -20,7 +20,7 @@ def _sample_emails_df():
                 "from": "alice@example.com",
                 "to": ["me@example.com"],
                 "cc": [],
-                "labels": ["Inbox"],
+                "folders": ["Inbox"],
                 "threads": "t1",
                 "subject": "Hello",
                 "content": "Hi there",
@@ -31,7 +31,7 @@ def _sample_emails_df():
                 "from": "bob@example.com",
                 "to": ["me@example.com"],
                 "cc": [],
-                "labels": ["Receipts"],
+                "folders": ["Receipts"],
                 "threads": "t2",
                 "subject": "Your invoice",
                 "content": "Invoice attached",
@@ -82,7 +82,7 @@ class TrainingAndStatusIntegrationTest(TestCase):
         self.assertEqual(status.message_count, 2)
         self.assertEqual(status.active_message_count, 2)
         self.assertEqual(status.deleted_message_count, 0)
-        self.assertEqual(set(status.trained_label_lst), {"Inbox", "Receipts"})
+        self.assertEqual(set(status.trained_folder_lst), {"Inbox", "Receipts"})
         self.assertGreater(status.feature_count, 0)
 
     def test_train_always_ignores_the_sorted_folder(self):
@@ -97,13 +97,13 @@ class TrainingAndStatusIntegrationTest(TestCase):
         self.assertEqual(model_count, 1)
 
         status = get_database_status(connection_str=self.connection_str, db_user_id=1)
-        self.assertEqual(status.trained_label_lst, ["Receipts"])
+        self.assertEqual(status.trained_folder_lst, ["Receipts"])
 
     def test_status_before_training_reports_no_models(self):
         status = get_database_status(connection_str=self.connection_str, db_user_id=1)
 
         self.assertEqual(status.message_count, 2)
-        self.assertEqual(status.trained_label_lst, [])
+        self.assertEqual(status.trained_folder_lst, [])
         self.assertEqual(status.feature_count, 0)
 
     def test_status_is_scoped_by_db_user_id(self):

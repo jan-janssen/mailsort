@@ -80,7 +80,7 @@ class AbstractMessage(ABC):
         pass
 
     @abstractmethod
-    def get_label_ids(self) -> list[str]:
+    def get_folder_ids(self) -> list[str]:
         pass
 
     @abstractmethod
@@ -107,7 +107,7 @@ class AbstractMessage(ABC):
         return {
             "id": self.get_email_id(),
             "threads": self.get_thread_id(),
-            "labels": self.get_label_ids(),
+            "folders": self.get_folder_ids(),
             "to": self.get_to(),
             "from": self.get_from(),
             "cc": self.get_cc(),
