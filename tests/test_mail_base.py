@@ -207,7 +207,7 @@ class AbstractMailBoxTest(TestCase):
         db_ml = MagicMock()
         mailbox = _StubMailBox(database_email=db_email, database_ml=db_ml)
         features = pd.DataFrame([{"email_id": "x", "f1": 1}])
-        folders = pd.DataFrame([{"labels_Inbox": 1}])
+        folders = pd.DataFrame([{"folders_Inbox": 1}])
         encode_mock.return_value = (features, folders)
         fit_mock.return_value = {"Inbox": MagicMock()}
 
@@ -312,7 +312,7 @@ class AbstractMailBoxTest(TestCase):
             "id1": {
                 "id": "id1",
                 "threads": "t1",
-                "labels": ["Inbox"],
+                "folders": ["Inbox"],
                 "to": [],
                 "from": None,
                 "cc": [],
@@ -358,7 +358,7 @@ class AbstractMailBoxTest(TestCase):
             "id1": {
                 "id": "id1",
                 "threads": "t1",
-                "labels": ["Inbox"],
+                "folders": ["Inbox"],
                 "to": [],
                 "from": None,
                 "cc": [],
@@ -369,7 +369,7 @@ class AbstractMailBoxTest(TestCase):
             "id2": {
                 "id": "id2",
                 "threads": "t2",
-                "labels": ["Inbox"],
+                "folders": ["Inbox"],
                 "to": [],
                 "from": None,
                 "cc": [],
@@ -416,15 +416,15 @@ class AbstractMailBoxTest(TestCase):
         db_email = MagicMock()
         db_email.get_all_emails.return_value = pd.DataFrame(
             [
-                {"id": "a", "labels": ["Inbox"]},
-                {"id": "b", "labels": ["Inbox", "Sorted"]},
-                {"id": "c", "labels": ["Sorted"]},
+                {"id": "a", "folders": ["Inbox"]},
+                {"id": "b", "folders": ["Inbox", "Sorted"]},
+                {"id": "c", "folders": ["Sorted"]},
             ]
         )
         mailbox = _StubMailBox(database_email=db_email, database_ml=MagicMock())
         encode_mock.return_value = (
             pd.DataFrame([{"email_id": "b", "f1": 1}]),
-            pd.DataFrame([{"labels_Sorted": 1}]),
+            pd.DataFrame([{"folders_Sorted": 1}]),
         )
         fit_mock.return_value = {"Sorted": MagicMock()}
 
@@ -432,7 +432,7 @@ class AbstractMailBoxTest(TestCase):
 
         encoded_df = encode_mock.call_args.kwargs["df"]
         self.assertEqual(encoded_df["id"].tolist(), ["b", "c"])
-        self.assertEqual(encoded_df["labels"].tolist(), [["Sorted"], ["Sorted"]])
+        self.assertEqual(encoded_df["folders"].tolist(), [["Sorted"], ["Sorted"]])
 
     @patch("mailsort.base.mail.score_messages_with_machine_learning_models")
     @patch("mailsort.base.mail.encode_df_for_machine_learning")
@@ -451,7 +451,7 @@ class AbstractMailBoxTest(TestCase):
             "id1": {
                 "id": "id1",
                 "threads": "t1",
-                "labels": ["Inbox"],
+                "folders": ["Inbox"],
                 "to": [],
                 "from": None,
                 "cc": [],
@@ -489,7 +489,7 @@ class AbstractMailBoxTest(TestCase):
             "id1": {
                 "id": "id1",
                 "threads": "t1",
-                "labels": ["Inbox"],
+                "folders": ["Inbox"],
                 "to": [],
                 "from": None,
                 "cc": [],
@@ -517,7 +517,7 @@ class AbstractMailBoxTest(TestCase):
             "id1": {
                 "id": "id1",
                 "threads": "t1",
-                "labels": ["Inbox"],
+                "folders": ["Inbox"],
                 "to": [],
                 "from": None,
                 "cc": [],
@@ -573,7 +573,7 @@ class AbstractMailBoxTest(TestCase):
             "id1": {
                 "id": "id1",
                 "threads": "t1",
-                "labels": ["Inbox"],
+                "folders": ["Inbox"],
                 "to": [],
                 "from": None,
                 "cc": [],
@@ -619,7 +619,7 @@ class AbstractMailBoxTest(TestCase):
             "id1": {
                 "id": "id1",
                 "threads": "t1",
-                "labels": ["Inbox"],
+                "folders": ["Inbox"],
                 "to": [],
                 "from": None,
                 "cc": [],
@@ -667,7 +667,7 @@ class AbstractMailBoxTest(TestCase):
             "id1": {
                 "id": "id1",
                 "threads": "t1",
-                "labels": ["Inbox"],
+                "folders": ["Inbox"],
                 "to": [],
                 "from": None,
                 "cc": [],
@@ -678,7 +678,7 @@ class AbstractMailBoxTest(TestCase):
             "id2": {
                 "id": "id2",
                 "threads": "t2",
-                "labels": ["Inbox"],
+                "folders": ["Inbox"],
                 "to": [],
                 "from": None,
                 "cc": [],

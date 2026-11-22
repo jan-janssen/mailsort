@@ -217,7 +217,7 @@ class PredictCommandTest(TestCase):
 
         self.assertEqual(exit_code, _EXIT_OK)
         imap_instance.get_folder_recommendations.assert_called_once_with(
-            folder="MailSortInbox", recommendation_ratio=0.9, folder_prefix="labels_"
+            folder="MailSortInbox", recommendation_ratio=0.9, folder_prefix="folders_"
         )
         imap_instance.filter_messages_from_server.assert_not_called()
         printed = "\n".join(str(call.args[0]) for call in print_mock.call_args_list)
@@ -287,7 +287,7 @@ class SortCommandTest(TestCase):
 
         self.assertEqual(exit_code, _EXIT_OK)
         imap_instance.filter_messages_from_server.assert_called_once_with(
-            folder="MailSortInbox", recommendation_ratio=0.9, folder_prefix="labels_"
+            folder="MailSortInbox", recommendation_ratio=0.9, folder_prefix="folders_"
         )
         imap_instance.close.assert_called_once()
         printed = "\n".join(str(call.args[0]) for call in print_mock.call_args_list)

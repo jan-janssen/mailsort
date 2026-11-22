@@ -46,7 +46,7 @@ def evaluate_models(
     min_samples_per_class_for_calibration=20,
     max_calibration_cv_folds=5,
     max_workers=None,
-    folder_prefix="labels_",
+    folder_prefix="folders_",
     folder=None,
 ):
     """
@@ -120,7 +120,7 @@ def score_holdout(
     min_samples_per_class_for_calibration=20,
     max_calibration_cv_folds=5,
     max_workers=None,
-    folder_prefix="labels_",
+    folder_prefix="folders_",
     folder=None,
 ):
     """

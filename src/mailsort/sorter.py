@@ -147,7 +147,7 @@ class MailSorter:
         self,
         folder: str,
         recommendation_ratio: float = 0.9,
-        folder_prefix: str = "labels_",
+        folder_prefix: str = "folders_",
     ) -> list[Prediction]:
         """
         Report machine learning recommendations for the messages currently in `folder` - the
@@ -179,7 +179,7 @@ class MailSorter:
         self,
         folder: str,
         recommendation_ratio: float = 0.9,
-        folder_prefix: str = "labels_",
+        folder_prefix: str = "folders_",
     ) -> SortResult:
         """
         Classify the messages currently in `folder` and move the ones whose score clears

@@ -9,7 +9,7 @@ def encode_df_for_machine_learning(
     feature_lst: list[str] | np.ndarray | None = None,
     folder_lst: list[str] | np.ndarray | None = None,
     return_folders: bool = False,
-    folder_prefix: str = "labels_",
+    folder_prefix: str = "folders_",
 ) -> pandas.DataFrame | tuple[pandas.DataFrame, pandas.DataFrame]:
     """
     Encode a given dataframe for machine learning. Either based on a list of existing features and folders or by
@@ -74,7 +74,7 @@ def remove_sorted_folder(
     otherwise act as negative examples for every real folder.
 
     Args:
-        df (pandas.DataFrame): DataFrame with emails, including a "labels" column of folder lists
+        df (pandas.DataFrame): DataFrame with emails, including a "folders" column of folder lists
         folder (str): folder to remove - if None, df is returned unchanged
 
     Returns:
@@ -84,7 +84,7 @@ def remove_sorted_folder(
         return df
     original_lst = [
         list(row_folders) if row_folders is not None else []
-        for row_folders in df["labels"].values
+        for row_folders in df["folders"].values
     ]
     filtered_lst = [
         [name for name in row_folders if name != folder] for row_folders in original_lst
@@ -94,7 +94,7 @@ def remove_sorted_folder(
         for original, filtered in zip(original_lst, filtered_lst, strict=True)
     ]
     df_new = df.copy()
-    df_new["labels"] = pandas.Series(filtered_lst, index=df.index, dtype=object)
+    df_new["folders"] = pandas.Series(filtered_lst, index=df.index, dtype=object)
     return df_new[keep].reset_index(drop=True)
 
 
@@ -136,7 +136,7 @@ def one_hot_encoding(
 
 # Helper functions for one hot encoding
 def _encoding_helper(df: pandas.DataFrame) -> tuple[np.ndarray, list[str]]:
-    folders_red_lst = _build_red_lst(df_column=df["labels"].values)
+    folders_red_lst = _build_red_lst(df_column=df["folders"].values)
     cc_red_lst = _build_red_lst(df_column=df.cc.values)
     thread_red_lst = df["threads"].unique()
     to_red_lst = _build_red_lst(df_column=df.to.values)
@@ -148,7 +148,7 @@ def _encoding_helper(df: pandas.DataFrame) -> tuple[np.ndarray, list[str]]:
         }
     )
     dict_folders_lst = _list_entry_df(
-        red_lst=folders_red_lst, value_lst=df["labels"].values
+        red_lst=folders_red_lst, value_lst=df["folders"].values
     )
     dict_cc_lst = _list_entry_email_df(red_lst=cc_red_lst, value_lst=df["cc"].values)
     dict_from_lst = _single_entry_email_df(
@@ -162,7 +162,7 @@ def _encoding_helper(df: pandas.DataFrame) -> tuple[np.ndarray, list[str]]:
         (dict_folders_lst, dict_cc_lst, dict_from_lst, dict_threads_lst, dict_to_lst)
     )
     all_folders = (
-        _get_lst_without_none(lst=folders_red_lst, column="labels")
+        _get_lst_without_none(lst=folders_red_lst, column="folders")
         + _get_lst_without_none(lst=cc_red_lst, column="cc")
         + _get_lst_without_none(lst=from_red_lst, column="from")
         + _get_lst_without_none(lst=thread_red_lst, column="threads")

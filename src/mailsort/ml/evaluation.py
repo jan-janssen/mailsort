@@ -163,7 +163,7 @@ def score_holdout_split(
     min_samples_per_class_for_calibration: int = 20,
     max_calibration_cv_folds: int = 5,
     max_workers: int | None = None,
-    folder_prefix: str = "labels_",
+    folder_prefix: str = "folders_",
     folder: str | None = None,
 ) -> HoldoutScores:
     """
@@ -273,7 +273,7 @@ def score_holdout_split(
 
     for _, row in df_test.iterrows():
         true_folder_lst = [
-            folder for folder in row["labels"] if folder in trained_folder_set
+            folder for folder in row["folders"] if folder in trained_folder_set
         ]
         if not true_folder_lst:
             excluded_test_message_count += 1
@@ -520,7 +520,7 @@ def evaluate_machine_learning_models(
     min_samples_per_class_for_calibration: int = 20,
     max_calibration_cv_folds: int = 5,
     max_workers: int | None = None,
-    folder_prefix: str = "labels_",
+    folder_prefix: str = "folders_",
     folder: str | None = None,
 ) -> EvaluationReport:
     """

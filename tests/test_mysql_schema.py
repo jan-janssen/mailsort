@@ -131,7 +131,7 @@ class LongValuesRoundTripTest(TestCase):
                     "from": "sender@example.com",
                     "id": "unicode-email",
                     "cc": ["café@example.com"],
-                    "labels": ["重要📬"],
+                    "folders": ["重要📬"],
                     "subject": "こんにちは 🌟",
                     "threads": "thread-😀",
                     "to": ["recipient📬@example.com"],
@@ -144,7 +144,7 @@ class LongValuesRoundTripTest(TestCase):
         df_stored = database.get_all_emails()
         self.assertEqual(df_stored["subject"].values[0], "こんにちは 🌟")
         self.assertEqual(df_stored["content"].values[0], "Hello 🌍 — café")
-        self.assertEqual(df_stored["labels"].values[0], ["重要📬"])
+        self.assertEqual(df_stored["folders"].values[0], ["重要📬"])
         self.assertEqual(df_stored["threads"].values[0], "thread-😀")
         self.assertEqual(df_stored["to"].values[0], ["recipient📬@example.com"])
 
@@ -160,7 +160,7 @@ class LongValuesRoundTripTest(TestCase):
                     "from": "sender@server.net",
                     "id": "myid123",
                     "cc": to_lst,
-                    "labels": ["important"],
+                    "folders": ["important"],
                     "subject": subject,
                     "threads": "abc123",
                     "to": to_lst,

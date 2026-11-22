@@ -88,7 +88,7 @@ class AbstractMailBox(ABC):
         self,
         folder,
         recommendation_ratio=0.9,
-        folder_prefix: str = "labels_",
+        folder_prefix: str = "folders_",
     ):
         """
         Filter new emails based on machine learning model recommendations.
@@ -124,7 +124,7 @@ class AbstractMailBox(ABC):
         self,
         folder,
         recommendation_ratio=0.9,
-        folder_prefix: str = "labels_",
+        folder_prefix: str = "folders_",
     ):
         """
         Score the messages currently in `folder` against the trained machine learning models,

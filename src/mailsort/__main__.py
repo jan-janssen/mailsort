@@ -19,7 +19,7 @@ from mailsort.training import train_machine_learning_models
 
 _DEFAULT_DATABASE = "sqlite:///email.db"
 _DEFAULT_RECOMMENDATION_RATIO = 0.9
-_DEFAULT_FOLDER_PREFIX = "labels_"
+_DEFAULT_FOLDER_PREFIX = "folders_"
 
 _EXIT_OK = 0
 _EXIT_RUNTIME_ERROR = 1

@@ -220,7 +220,7 @@ class TestMlEncoding(unittest.TestCase):
         self.df = pd.DataFrame(
             {
                 "id": ["id1", "id2"],
-                "labels": [["Label_1", "Label_2"], ["Label_2", "Label_3"]],
+                "folders": [["Label_1", "Label_2"], ["Label_2", "Label_3"]],
                 "cc": [["cc1@test.com"], ["cc2@test.com", "cc3@another.com"]],
                 "threads": ["thread1", "thread2"],
                 "to": [["to1@test.com"], ["to2@test.com"]],
@@ -230,11 +230,11 @@ class TestMlEncoding(unittest.TestCase):
 
     def test_encode_df_for_machine_learning_no_feature_list(self):
         df_features = encode_df_for_machine_learning(
-            self.df, return_folders=False, folder_prefix="labels_Label_"
+            self.df, return_folders=False, folder_prefix="folders_Label_"
         )
         self.assertIn("email_id", df_features.columns)
         self.assertEqual(len(df_features), 2)
-        self.assertNotIn("labels_Label_1", df_features.columns)
+        self.assertNotIn("folders_Label_1", df_features.columns)
 
     def test_encode_df_for_machine_learning_with_feature_list(self):
         features = ["cc_@test.com", "from_from1@test.com"]
@@ -242,7 +242,7 @@ class TestMlEncoding(unittest.TestCase):
             self.df,
             feature_lst=features,
             return_folders=False,
-            folder_prefix="labels_Label_",
+            folder_prefix="folders_Label_",
         )
         self.assertEqual(
             set(df_features.columns),
@@ -251,43 +251,43 @@ class TestMlEncoding(unittest.TestCase):
 
     def test_encode_df_for_machine_learning_with_numpy_arrays(self):
         features = np.array(["cc_@test.com", "from_from1@test.com"])
-        folders = np.array(["labels_Label_1"])
+        folders = np.array(["folders_Label_1"])
         df_features, df_folders = encode_df_for_machine_learning(
             self.df,
             feature_lst=features,
             folder_lst=folders,
             return_folders=True,
-            folder_prefix="labels_Label_",
+            folder_prefix="folders_Label_",
         )
         self.assertEqual(
             set(df_features.columns),
             {"cc_@test.com", "from_from1@test.com", "email_id"},
         )
-        self.assertEqual(set(df_folders.columns), {"labels_Label_1"})
+        self.assertEqual(set(df_folders.columns), {"folders_Label_1"})
 
     def test_encode_df_for_machine_learning_return_folders(self):
         df_features, df_folders = encode_df_for_machine_learning(
-            self.df, return_folders=True, folder_prefix="labels_Label_"
+            self.df, return_folders=True, folder_prefix="folders_Label_"
         )
-        self.assertIn("labels_Label_1", df_folders.columns)
-        self.assertEqual(df_folders["labels_Label_1"].tolist(), [1, 0])
+        self.assertIn("folders_Label_1", df_folders.columns)
+        self.assertEqual(df_folders["folders_Label_1"].tolist(), [1, 0])
 
     def test_one_hot_encoding_no_feature_list(self):
         df_encoded = one_hot_encoding(self.df)
-        self.assertIn("labels_Label_1", df_encoded.columns)
+        self.assertIn("folders_Label_1", df_encoded.columns)
         self.assertIn("cc_@test.com", df_encoded.columns)
         self.assertEqual(df_encoded["from_@another.com"].sum(), 1)
         self.assertEqual(df_encoded["threads_thread1"].sum(), 1)
         self.assertEqual(df_encoded["to_to1@test.com"].sum(), 1)
 
     def test_one_hot_encoding_with_feature_list(self):
-        features = ["labels_Label_1", "cc_@another.com", "from_@test.com"]
+        features = ["folders_Label_1", "cc_@another.com", "from_@test.com"]
         df_encoded = one_hot_encoding(self.df, feature_lst=features)
         self.assertEqual(
             set(df_encoded.columns),
-            {"labels_Label_1", "cc_@another.com", "from_@test.com", "email_id"},
+            {"folders_Label_1", "cc_@another.com", "from_@test.com", "email_id"},
         )
-        self.assertEqual(df_encoded["labels_Label_1"].tolist(), [1, 0])
+        self.assertEqual(df_encoded["folders_Label_1"].tolist(), [1, 0])
         self.assertEqual(df_encoded["from_@test.com"].tolist(), [1, 0])
 
     def test_build_red_lst(self):
@@ -336,8 +336,8 @@ class TestMlModel(unittest.TestCase):
         )
         self.df_folders = pd.DataFrame(
             {
-                "labels_Label_1": [1, 0, 1],
-                "labels_Label_2": [0, 1, 0],
+                "folders_Label_1": [1, 0, 1],
+                "folders_Label_2": [0, 1, 0],
             }
         )
         self.models = fit_machine_learning_models(
@@ -346,7 +346,7 @@ class TestMlModel(unittest.TestCase):
 
     def test_train_random_forest(self):
         X = self.df_features.drop("email_id", axis=1)
-        y = self.df_folders["labels_Label_1"]
+        y = self.df_folders["folders_Label_1"]
         model = train_random_forest(10, 42, True, 2, X, y)
         self.assertIsInstance(model, RandomForestClassifier)
         self.assertTrue(hasattr(model, "predict"))
@@ -488,22 +488,22 @@ class TestMlModel(unittest.TestCase):
                     "cc": entry[3],
                     "date": entry[4],
                     "threads": entry[5],
-                    "labels": entry[6],
+                    "folders": entry[6],
                     "subject": subject.strip('"'),
                     "content": content if content else None,
                 }
             )
         df = pd.DataFrame(rows)
-        for col in ["to", "cc", "labels"]:
+        for col in ["to", "cc", "folders"]:
             df[col] = df[col].apply(ast.literal_eval)
 
         df_features, df_folders = encode_df_for_machine_learning(
-            df, return_folders=True, folder_prefix="labels_Label_"
+            df, return_folders=True, folder_prefix="folders_Label_"
         )
         df_features = df_features.loc[:, ~df_features.columns.duplicated()]
         self.assertEqual(len(df_features), 12)
         self.assertIn("email_id", df_features.columns)
-        self.assertEqual(set(df_folders.columns), {"labels_Label_7891913576640435048"})
+        self.assertEqual(set(df_folders.columns), {"folders_Label_7891913576640435048"})
 
         models = fit_machine_learning_models(
             df_features, df_folders, n_estimators=10, max_features=2, max_workers=1
@@ -539,22 +539,22 @@ class TestMlModel(unittest.TestCase):
                     "cc": entry[3],
                     "date": entry[4],
                     "threads": entry[5],
-                    "labels": entry[6],
+                    "folders": entry[6],
                     "subject": subject.strip('"'),
                     "content": content if content else None,
                 }
             )
         df = pd.DataFrame(rows)
-        for col in ["to", "cc", "labels"]:
+        for col in ["to", "cc", "folders"]:
             df[col] = df[col].apply(ast.literal_eval)
 
         df_features, df_folders = encode_df_for_machine_learning(
-            df, return_folders=True, folder_prefix="labels_Label_"
+            df, return_folders=True, folder_prefix="folders_Label_"
         )
         df_features = df_features.loc[:, ~df_features.columns.duplicated()]
         self.assertEqual(len(df_features), 12)
         self.assertIn("email_id", df_features.columns)
-        self.assertEqual(set(df_folders.columns), {"labels_Label_7891913576640435048"})
+        self.assertEqual(set(df_folders.columns), {"folders_Label_7891913576640435048"})
 
         models = fit_machine_learning_models(
             df_features, df_folders, n_estimators=10, max_features=2, max_workers=2
@@ -568,7 +568,7 @@ class RemoveSortedFolderTest(unittest.TestCase):
         return pd.DataFrame(
             {
                 "id": ["a", "b", "c", "d"],
-                "labels": [
+                "folders": [
                     ["MailSortInbox"],
                     ["MailSortInbox", "Receipts"],
                     ["Receipts"],
@@ -585,7 +585,7 @@ class RemoveSortedFolderTest(unittest.TestCase):
         result = remove_sorted_folder(self._df(), "MailSortInbox")
 
         self.assertEqual(result["id"].tolist(), ["b", "c", "d"])
-        self.assertEqual(result["labels"].tolist(), [["Receipts"], ["Receipts"], []])
+        self.assertEqual(result["folders"].tolist(), [["Receipts"], ["Receipts"], []])
         self.assertEqual(list(result.index), [0, 1, 2])
 
     def test_does_not_modify_the_input_dataframe(self):
@@ -593,18 +593,18 @@ class RemoveSortedFolderTest(unittest.TestCase):
 
         remove_sorted_folder(df, "MailSortInbox")
 
-        self.assertEqual(df["labels"].tolist()[0], ["MailSortInbox"])
+        self.assertEqual(df["folders"].tolist()[0], ["MailSortInbox"])
         self.assertEqual(len(df), 4)
 
     def test_handles_none_folders_and_numpy_arrays(self):
         df = pd.DataFrame(
-            {"id": ["a", "b"], "labels": [None, np.array(["X", "Inbox"])]}
+            {"id": ["a", "b"], "folders": [None, np.array(["X", "Inbox"])]}
         )
 
         result = remove_sorted_folder(df, "Inbox")
 
         self.assertEqual(result["id"].tolist(), ["a", "b"])
-        self.assertEqual(result["labels"].tolist(), [[], ["X"]])
+        self.assertEqual(result["folders"].tolist(), [[], ["X"]])
 
     def test_encoded_folders_no_longer_contain_the_folder(self):
         df = pd.DataFrame(
@@ -614,7 +614,7 @@ class RemoveSortedFolderTest(unittest.TestCase):
                 "to": [[], [], []],
                 "cc": [[], [], []],
                 "threads": ["t1", "t2", "t3"],
-                "labels": [["Inbox"], ["Inbox", "Receipts"], ["Receipts"]],
+                "folders": [["Inbox"], ["Inbox", "Receipts"], ["Receipts"]],
             }
         )
 
@@ -625,7 +625,7 @@ class RemoveSortedFolderTest(unittest.TestCase):
             return_folders=True,
         )
 
-        self.assertEqual(folders.columns.tolist(), ["labels_Receipts"])
+        self.assertEqual(folders.columns.tolist(), ["folders_Receipts"])
 
 
 class LegacyMachineLearningTableMigrationTest(unittest.TestCase):

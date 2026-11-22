@@ -114,7 +114,7 @@ end up in your shell history in plain text.
   is a threshold on a model score, not a guaranteed probability of being correct - see
   [Evaluation and confidence](evaluation).
 - `--folder-prefix` prefix used to recognise folder columns during feature encoding - only needs to change if you
-  customised this in the Python API - default: `labels_`.
+  customised this in the Python API - default: `folders_`.
 
 ### Exit codes
 `mailsort` returns `0` on success, `2` for invalid configuration (e.g. a command that needs `--host`/`--username`/
