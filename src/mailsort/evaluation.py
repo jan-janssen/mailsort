@@ -46,7 +46,7 @@ def evaluate_models(
     min_samples_per_class_for_calibration=20,
     max_calibration_cv_folds=5,
     max_workers=None,
-    label_prefix="labels_",
+    folder_prefix="labels_",
     folder=None,
 ):
     """
@@ -71,7 +71,7 @@ def evaluate_models(
             mailsort.ml.calibration.should_calibrate()
         max_calibration_cv_folds (int): see mailsort.ml.calibration.calibration_cv_folds()
         max_workers (int): maximum number of workers for the machine learning models
-        label_prefix (str): prefix used to recognise label columns during feature encoding
+        folder_prefix (str): prefix used to recognise label columns during feature encoding
         folder (str): the folder that gets sorted, ignored as in training - default: None
 
     Returns:
@@ -96,7 +96,7 @@ def evaluate_models(
             min_samples_per_class_for_calibration=min_samples_per_class_for_calibration,
             max_calibration_cv_folds=max_calibration_cv_folds,
             max_workers=max_workers,
-            label_prefix=label_prefix,
+            folder_prefix=folder_prefix,
             folder=folder,
         )
     finally:
@@ -120,7 +120,7 @@ def score_holdout(
     min_samples_per_class_for_calibration=20,
     max_calibration_cv_folds=5,
     max_workers=None,
-    label_prefix="labels_",
+    folder_prefix="labels_",
     folder=None,
 ):
     """
@@ -152,7 +152,7 @@ def score_holdout(
             min_samples_per_class_for_calibration=min_samples_per_class_for_calibration,
             max_calibration_cv_folds=max_calibration_cv_folds,
             max_workers=max_workers,
-            label_prefix=label_prefix,
+            folder_prefix=folder_prefix,
             folder=folder,
         )
     finally:

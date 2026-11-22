@@ -199,22 +199,22 @@ imap = Imap(
 )
 imap.update_database(quick=False)
 imap.fit_machine_learning_model_to_database(folder="some_label")
-imap.filter_messages_from_server(label="some_label", recommendation_ratio=0.9)
+imap.filter_messages_from_server(folder="some_label", recommendation_ratio=0.9)
 ```
 `update_database()`, `fit_machine_learning_model_to_database()` and `filter_messages_from_server()`
 return the same `SyncResult`/`TrainResult`/`SortResult` objects as their `MailSorter` counterparts.
-`get_label_recommendations()` is `predict()`'s implementation - it already returns `list[Prediction]`,
+`get_folder_recommendations()` is `predict()`'s implementation - it already returns `list[Prediction]`,
 so `MailSorter.predict()` is a pure passthrough to it:
 ```python
-for prediction in imap.get_label_recommendations(
-    label="some_label", recommendation_ratio=0.9
+for prediction in imap.get_folder_recommendations(
+    folder="some_label", recommendation_ratio=0.9
 ):
     print(prediction.message_id, prediction.recommended_folder)
 ```
 `filter_messages_from_server()` scores messages through this exact same call, then moves only the
 accepted predictions - inference and mailbox mutation are separated in code, not just by
 convention, so it is not possible to move a message without it first having gone through
-`get_label_recommendations()`.
+`get_folder_recommendations()`.
 
 ### Train and inspect the local database without a mail connection
 `train_machine_learning_models()` and `get_database_status()` are the functions behind the

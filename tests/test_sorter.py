@@ -30,7 +30,7 @@ class MailSorterTest(TestCase):
         result = self.sorter.sync()
 
         self.mailbox.update_database.assert_called_once_with(
-            quick=False, label_lst=None, email_format=None
+            quick=False, folder_lst=None, email_format=None
         )
         self.assertEqual(
             result,
@@ -44,10 +44,10 @@ class MailSorterTest(TestCase):
             new_message_count=3, updated_message_count=1, deleted_message_count=2
         )
 
-        result = self.sorter.sync(quick=True, label_lst=["Inbox"], email_format="full")
+        result = self.sorter.sync(quick=True, folder_lst=["Inbox"], email_format="full")
 
         self.mailbox.update_database.assert_called_once_with(
-            quick=True, label_lst=["Inbox"], email_format="full"
+            quick=True, folder_lst=["Inbox"], email_format="full"
         )
         self.assertEqual(result.new_message_count, 3)
 
@@ -111,7 +111,7 @@ class MailSorterTest(TestCase):
         self.assertEqual(kwargs["folder"], "MailSortInbox")
 
     def test_predict_passes_through_the_predictions_from_the_mailbox(self):
-        # get_label_recommendations() already returns list[Prediction] - predict() is a pure
+        # get_folder_recommendations() already returns list[Prediction] - predict() is a pure
         # delegation, not a second place that builds Predictions, so this checks identity/
         # equality of what comes back rather than any wrapping/transformation.
         prediction_lst = [
@@ -136,26 +136,26 @@ class MailSorterTest(TestCase):
                 subject=None,
             ),
         ]
-        self.mailbox.get_label_recommendations.return_value = prediction_lst
+        self.mailbox.get_folder_recommendations.return_value = prediction_lst
 
         predictions = self.sorter.predict(
-            "MailSortInbox", recommendation_ratio=0.8, label_prefix="custom_"
+            "MailSortInbox", recommendation_ratio=0.8, folder_prefix="custom_"
         )
 
-        self.mailbox.get_label_recommendations.assert_called_once_with(
-            label="MailSortInbox", recommendation_ratio=0.8, label_prefix="custom_"
+        self.mailbox.get_folder_recommendations.assert_called_once_with(
+            folder="MailSortInbox", recommendation_ratio=0.8, folder_prefix="custom_"
         )
         self.assertIs(predictions, prediction_lst)
 
     def test_predict_never_calls_sort(self):
-        self.mailbox.get_label_recommendations.return_value = []
+        self.mailbox.get_folder_recommendations.return_value = []
 
         self.sorter.predict("MailSortInbox")
 
         self.mailbox.filter_messages_from_server.assert_not_called()
 
     def test_predict_empty_folder_returns_empty_list(self):
-        self.mailbox.get_label_recommendations.return_value = []
+        self.mailbox.get_folder_recommendations.return_value = []
 
         self.assertEqual(self.sorter.predict("Empty"), [])
 
@@ -165,11 +165,11 @@ class MailSorterTest(TestCase):
         )
 
         result = self.sorter.sort(
-            "MailSortInbox", recommendation_ratio=0.7, label_prefix="custom_"
+            "MailSortInbox", recommendation_ratio=0.7, folder_prefix="custom_"
         )
 
         self.mailbox.filter_messages_from_server.assert_called_once_with(
-            label="MailSortInbox", recommendation_ratio=0.7, label_prefix="custom_"
+            folder="MailSortInbox", recommendation_ratio=0.7, folder_prefix="custom_"
         )
         self.assertEqual(result.moved_count, 1)
         self.assertEqual(result.moved_lst, [("MailSortInbox\x1f1", "Sorted")])

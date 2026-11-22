@@ -34,12 +34,12 @@ _TABLE_COLUMN_WIDTHS = {
 
 def _format_recommendations_table(predictions):
     """
-    Render the list[Prediction] returned by Imap.get_label_recommendations() as a plain text
+    Render the list[Prediction] returned by Imap.get_folder_recommendations() as a plain text
     table for the command line - one row per message, no messages are moved to build this.
 
     Args:
         predictions (list[mailsort.results.Prediction]): return value of
-            AbstractMailBox.get_label_recommendations()
+            AbstractMailBox.get_folder_recommendations()
 
     Returns:
         str: human-readable table, or a placeholder message if there are no messages
@@ -227,7 +227,7 @@ def _add_recommendation_arguments(parser):
         f"(0<r<1) - default: {_DEFAULT_RECOMMENDATION_RATIO} .",
     )
     parser.add_argument(
-        "--label-prefix",
+        "--folder-prefix",
         default=_DEFAULT_LABEL_PREFIX,
         help="Prefix used to recognise label columns during feature encoding - only needs "
         f"to change if you customised this in the Python API - default: {_DEFAULT_LABEL_PREFIX!r} .",
@@ -466,7 +466,7 @@ def _run_sync(args, database, db_user_id):
         return _report_missing_connection_fields("sync", missing)
     imap = _connect(args, database, db_user_id)
     try:
-        imap.update_database(quick=args.quick, label_lst=args.folder)
+        imap.update_database(quick=args.quick, folder_lst=args.folder)
     finally:
         imap.close()
     print(f"Synced local database at {database!r}.")
@@ -491,10 +491,10 @@ def _run_predict(args, database, db_user_id):
         return _report_missing_connection_fields("predict", missing)
     imap = _connect(args, database, db_user_id)
     try:
-        recommendations = imap.get_label_recommendations(
-            label=args.folder,
+        recommendations = imap.get_folder_recommendations(
+            folder=args.folder,
             recommendation_ratio=args.recommendation_ratio,
-            label_prefix=args.label_prefix,
+            folder_prefix=args.folder_prefix,
         )
     finally:
         imap.close()
@@ -509,9 +509,9 @@ def _run_sort(args, database, db_user_id):
     imap = _connect(args, database, db_user_id)
     try:
         result = imap.filter_messages_from_server(
-            label=args.folder,
+            folder=args.folder,
             recommendation_ratio=args.recommendation_ratio,
-            label_prefix=args.label_prefix,
+            folder_prefix=args.folder_prefix,
         )
     finally:
         imap.close()

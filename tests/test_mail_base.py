@@ -22,7 +22,7 @@ class _StubMailBox(AbstractMailBox):
         super().__init__(mail_service=MagicMock(), **kwargs)
 
     def _search_email_on_server(
-        self, query_string="", label_lst=None, only_message_ids=False
+        self, query_string="", folder_lst=None, only_message_ids=False
     ):
         return self.search_result
 
@@ -87,7 +87,7 @@ class AbstractMailBoxTest(TestCase):
 
         mailbox.close.assert_called_once_with()
 
-    def test_download_emails_for_label(self):
+    def test_download_emails_for_folder(self):
         mailbox = _StubMailBox()
         mailbox.search_result = ["id1", "id2"]
         mailbox.message_detail_dict = {
@@ -105,7 +105,7 @@ class AbstractMailBoxTest(TestCase):
             "id2": None,
         }
 
-        df = mailbox.download_emails_for_label(label="Inbox")
+        df = mailbox.download_emails_for_folder(folder="Inbox")
 
         self.assertEqual(df["id"].tolist(), ["id1"])
 
@@ -119,7 +119,7 @@ class AbstractMailBoxTest(TestCase):
 
         moved_lst = mailbox._move_emails(
             prediction_lst=prediction_lst,
-            label_to_ignore="Inbox",
+            folder_to_ignore="Inbox",
         )
 
         self.assertEqual(mailbox.modify_calls, [("id3", ["Inbox"], ["Spam"])])
@@ -248,7 +248,7 @@ class AbstractMailBoxTest(TestCase):
             }
         ]
 
-        result = mailbox.filter_messages_from_server(label="Inbox")
+        result = mailbox.filter_messages_from_server(folder="Inbox")
 
         self.assertEqual(mailbox.modify_calls, [("id1", ["Inbox"], ["Sorted"])])
         self.assertEqual(result, SortResult([("id1", "Sorted")]))
@@ -289,16 +289,16 @@ class AbstractMailBoxTest(TestCase):
             }
         ]
 
-        result = mailbox.filter_messages_from_server(label="Inbox")
+        result = mailbox.filter_messages_from_server(folder="Inbox")
 
         self.assertEqual(mailbox.modify_calls, [])
         self.assertEqual(result, SortResult([]))
 
     def test_filter_messages_from_server_without_trained_models_does_not_crash(self):
-        # Regression test: get_label_recommendations() has always special-cased an untrained
+        # Regression test: get_folder_recommendations() has always special-cased an untrained
         # database (no per-label models yet) to abstain without running the ML pipeline.
         # filter_messages_from_server() now shares that same code path via
-        # get_label_recommendations(), so it inherits the same safety - previously it called the
+        # get_folder_recommendations(), so it inherits the same safety - previously it called the
         # ML pipeline unconditionally and crashed on an untrained database instead of abstaining.
         db_ml = MagicMock()
         db_ml.load_models.return_value = ({}, [])
@@ -318,7 +318,7 @@ class AbstractMailBoxTest(TestCase):
             }
         }
 
-        result = mailbox.filter_messages_from_server(label="Inbox")
+        result = mailbox.filter_messages_from_server(folder="Inbox")
 
         self.assertEqual(mailbox.modify_calls, [])
         self.assertEqual(result, SortResult([]))
@@ -327,23 +327,23 @@ class AbstractMailBoxTest(TestCase):
         mailbox = _StubMailBox()
         mailbox.search_result = []
 
-        result = mailbox.filter_messages_from_server(label="Inbox")
+        result = mailbox.filter_messages_from_server(folder="Inbox")
 
         self.assertEqual(result, SortResult([]))
         self.assertEqual(result.moved_count, 0)
 
-    def test_get_label_recommendations_returns_empty_list_for_empty_folder(self):
+    def test_get_folder_recommendations_returns_empty_list_for_empty_folder(self):
         db_ml = MagicMock()
         mailbox = _StubMailBox(database_ml=db_ml)
         mailbox.search_result = []
 
-        recommendations = mailbox.get_label_recommendations(label="Inbox")
+        recommendations = mailbox.get_folder_recommendations(folder="Inbox")
 
         self.assertEqual(recommendations, [])
         db_ml.load_models.assert_not_called()
         self.assertEqual(mailbox.modify_calls, [])
 
-    def test_get_label_recommendations_without_trained_models_abstains_for_every_message(
+    def test_get_folder_recommendations_without_trained_models_abstains_for_every_message(
         self,
     ):
         db_ml = MagicMock()
@@ -375,8 +375,8 @@ class AbstractMailBoxTest(TestCase):
             },
         }
 
-        predictions = mailbox.get_label_recommendations(
-            label="Inbox", recommendation_ratio=0.9
+        predictions = mailbox.get_folder_recommendations(
+            folder="Inbox", recommendation_ratio=0.9
         )
 
         self.assertEqual(
@@ -432,7 +432,7 @@ class AbstractMailBoxTest(TestCase):
 
     @patch("mailsort.base.mail.score_messages_with_machine_learning_models")
     @patch("mailsort.base.mail.encode_df_for_machine_learning")
-    def test_get_label_recommendations_ignores_source_folder_model(
+    def test_get_folder_recommendations_ignores_source_folder_model(
         self, encode_mock, score_mock
     ):
         db_ml = MagicMock()
@@ -467,14 +467,14 @@ class AbstractMailBoxTest(TestCase):
             }
         ]
 
-        mailbox.get_label_recommendations(label="Inbox")
+        mailbox.get_folder_recommendations(folder="Inbox")
 
         self.assertEqual(
             list(score_mock.call_args.kwargs["model_dict"].keys()), ["Sorted"]
         )
         self.assertEqual(encode_mock.call_args.kwargs["label_lst"], ["Sorted"])
 
-    def test_get_label_recommendations_abstains_when_only_source_folder_model_exists(
+    def test_get_folder_recommendations_abstains_when_only_source_folder_model_exists(
         self,
     ):
         db_ml = MagicMock()
@@ -495,14 +495,14 @@ class AbstractMailBoxTest(TestCase):
             }
         }
 
-        (prediction,) = mailbox.get_label_recommendations(label="Inbox")
+        (prediction,) = mailbox.get_folder_recommendations(folder="Inbox")
 
         self.assertIsNone(prediction.recommended_folder)
         self.assertFalse(prediction.accepted)
 
     @patch("mailsort.base.mail.score_messages_with_machine_learning_models")
     @patch("mailsort.base.mail.encode_df_for_machine_learning")
-    def test_get_label_recommendations_wires_scores_into_an_accepted_prediction(
+    def test_get_folder_recommendations_wires_scores_into_an_accepted_prediction(
         self, encode_mock, score_mock
     ):
         db_ml = MagicMock()
@@ -533,8 +533,8 @@ class AbstractMailBoxTest(TestCase):
             }
         ]
 
-        predictions = mailbox.get_label_recommendations(
-            label="Inbox", recommendation_ratio=0.9
+        predictions = mailbox.get_folder_recommendations(
+            folder="Inbox", recommendation_ratio=0.9
         )
 
         self.assertEqual(
@@ -558,7 +558,7 @@ class AbstractMailBoxTest(TestCase):
 
     @patch("mailsort.base.mail.score_messages_with_machine_learning_models")
     @patch("mailsort.base.mail.encode_df_for_machine_learning")
-    def test_get_label_recommendations_below_threshold_abstains(
+    def test_get_folder_recommendations_below_threshold_abstains(
         self, encode_mock, score_mock
     ):
         db_ml = MagicMock()
@@ -590,8 +590,8 @@ class AbstractMailBoxTest(TestCase):
             }
         ]
 
-        (prediction,) = mailbox.get_label_recommendations(
-            label="Inbox", recommendation_ratio=0.9
+        (prediction,) = mailbox.get_folder_recommendations(
+            folder="Inbox", recommendation_ratio=0.9
         )
 
         self.assertEqual(prediction.recommended_folder, "Sorted")
@@ -602,7 +602,7 @@ class AbstractMailBoxTest(TestCase):
 
     @patch("mailsort.base.mail.score_messages_with_machine_learning_models")
     @patch("mailsort.base.mail.encode_df_for_machine_learning")
-    def test_get_label_recommendations_score_exactly_at_threshold_abstains(
+    def test_get_folder_recommendations_score_exactly_at_threshold_abstains(
         self, encode_mock, score_mock
     ):
         # Boundary/tie case: a score exactly equal to the threshold must not be accepted - the
@@ -637,8 +637,8 @@ class AbstractMailBoxTest(TestCase):
             }
         ]
 
-        (prediction,) = mailbox.get_label_recommendations(
-            label="Inbox", recommendation_ratio=0.9
+        (prediction,) = mailbox.get_folder_recommendations(
+            folder="Inbox", recommendation_ratio=0.9
         )
 
         self.assertEqual(prediction.score, prediction.threshold)
@@ -646,7 +646,7 @@ class AbstractMailBoxTest(TestCase):
 
     @patch("mailsort.base.mail.score_messages_with_machine_learning_models")
     @patch("mailsort.base.mail.encode_df_for_machine_learning")
-    def test_get_label_recommendations_mixed_accepted_and_abstained(
+    def test_get_folder_recommendations_mixed_accepted_and_abstained(
         self, encode_mock, score_mock
     ):
         # Two trained folders effectively "tie" from the caller's point of view in that both
@@ -703,8 +703,8 @@ class AbstractMailBoxTest(TestCase):
             },
         ]
 
-        predictions = mailbox.get_label_recommendations(
-            label="Inbox", recommendation_ratio=0.9
+        predictions = mailbox.get_folder_recommendations(
+            folder="Inbox", recommendation_ratio=0.9
         )
 
         accepted = [p for p in predictions if p.accepted]

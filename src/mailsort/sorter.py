@@ -73,7 +73,7 @@ class MailSorter:
     def sync(
         self,
         quick: bool = False,
-        label_lst: list[str] | None = None,
+        folder_lst: list[str] | None = None,
         email_format: str | None = None,
     ) -> SyncResult:
         """
@@ -82,14 +82,14 @@ class MailSorter:
         Args:
             quick: only add new messages, skip re-checking the labels of already-known ones -
                 default: False
-            label_lst: restrict the sync to these folders - default: every folder
+            folder_lst: restrict the sync to these folders - default: every folder
             email_format: backend-specific download format hint
 
         Returns:
             SyncResult: how many messages were newly stored, relabeled and marked deleted
         """
         return self._mailbox.update_database(
-            quick=quick, label_lst=label_lst, email_format=email_format
+            quick=quick, folder_lst=folder_lst, email_format=email_format
         )
 
     def train(
@@ -147,7 +147,7 @@ class MailSorter:
         self,
         folder: str,
         recommendation_ratio: float = 0.9,
-        label_prefix: str = "labels_",
+        folder_prefix: str = "labels_",
     ) -> list[Prediction]:
         """
         Report machine learning recommendations for the messages currently in `folder` - the
@@ -164,22 +164,22 @@ class MailSorter:
                 move a message (0<r<1). A threshold on a model score, not a guaranteed
                 probability of being correct - see mailsort.ml.evaluation to check what a given
                 threshold achieves on your own data.
-            label_prefix: prefix used to recognise label columns during feature encoding
+            folder_prefix: prefix used to recognise label columns during feature encoding
 
         Returns:
             list[Prediction]: one entry per message currently in `folder`
         """
-        return self._mailbox.get_label_recommendations(
-            label=folder,
+        return self._mailbox.get_folder_recommendations(
+            folder=folder,
             recommendation_ratio=recommendation_ratio,
-            label_prefix=label_prefix,
+            folder_prefix=folder_prefix,
         )
 
     def sort(
         self,
         folder: str,
         recommendation_ratio: float = 0.9,
-        label_prefix: str = "labels_",
+        folder_prefix: str = "labels_",
     ) -> SortResult:
         """
         Classify the messages currently in `folder` and move the ones whose score clears
@@ -194,13 +194,13 @@ class MailSorter:
             recommendation_ratio: cutoff a score must clear to actually move a message (0<r<1) -
                 see predict() and mailsort.ml.evaluation for what this cutoff does and does not
                 guarantee
-            label_prefix: prefix used to recognise label columns during feature encoding
+            folder_prefix: prefix used to recognise label columns during feature encoding
 
         Returns:
             SortResult: which messages were actually moved, and to where
         """
         return self._mailbox.filter_messages_from_server(
-            label=folder,
+            folder=folder,
             recommendation_ratio=recommendation_ratio,
-            label_prefix=label_prefix,
+            folder_prefix=folder_prefix,
         )

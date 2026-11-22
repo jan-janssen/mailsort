@@ -163,14 +163,14 @@ def score_holdout_split(
     min_samples_per_class_for_calibration: int = 20,
     max_calibration_cv_folds: int = 5,
     max_workers: int | None = None,
-    label_prefix: str = "labels_",
+    folder_prefix: str = "labels_",
     folder: str | None = None,
 ) -> HoldoutScores:
     """
     Split `df` into a thread-grouped train/test set (see thread_grouped_train_test_split), train
     a throwaway set of per-folder models on the train split exactly as
     AbstractMailBox.fit_machine_learning_model_to_database() would, and score the test split
-    exactly as AbstractMailBox.get_label_recommendations() would - the raw material
+    exactly as AbstractMailBox.get_folder_recommendations() would - the raw material
     evaluate_at_threshold() turns into metrics.
 
     Args:
@@ -185,7 +185,7 @@ def score_holdout_split(
         min_samples_per_class_for_calibration: see mailsort.ml.calibration.should_calibrate()
         max_calibration_cv_folds: see mailsort.ml.calibration.calibration_cv_folds()
         max_workers: maximum number of worker processes to train models in parallel
-        label_prefix: prefix used to recognise label columns during feature encoding
+        folder_prefix: prefix used to recognise label columns during feature encoding
         folder: the folder that gets sorted, ignored as in training - see
             remove_folder_from_labels()
 
@@ -218,7 +218,7 @@ def score_holdout_split(
         feature_lst=[],
         label_lst=[],
         return_labels=True,
-        label_prefix=label_prefix,
+        folder_prefix=folder_prefix,
     )
     df_train_features = df_train_features.loc[
         :, ~df_train_features.columns.duplicated()
@@ -240,7 +240,7 @@ def score_holdout_split(
     )
     trained_label_set = set(model_dict.keys())
     # MachineLearningDatabase.store_models() strips "email_id" from the feature list it persists
-    # (see mailsort/ml/database.py) before AbstractMailBox.get_label_recommendations() reloads
+    # (see mailsort/ml/database.py) before AbstractMailBox.get_folder_recommendations() reloads
     # and reuses it - mirrored here, since encode_df_for_machine_learning() appends its own
     # "email_id" column unconditionally and would otherwise end up with two.
     trained_feature_lst = [
@@ -252,13 +252,13 @@ def score_holdout_split(
     scored_message_lst: list[ScoredTestMessage] = []
     excluded_test_message_count = 0
     if len(df_test) > 0 and len(model_dict) > 0:
-        # Mirrors AbstractMailBox.get_label_recommendations() - see the comment above.
+        # Mirrors AbstractMailBox.get_folder_recommendations() - see the comment above.
         df_test_features = encode_df_for_machine_learning(
             df=df_test,
             feature_lst=trained_feature_lst,
             label_lst=list(trained_label_set),
             return_labels=False,
-            label_prefix=label_prefix,
+            folder_prefix=folder_prefix,
         )
         df_test_features = df_test_features.reindex(
             sorted(df_test_features.columns), axis=1
@@ -520,7 +520,7 @@ def evaluate_machine_learning_models(
     min_samples_per_class_for_calibration: int = 20,
     max_calibration_cv_folds: int = 5,
     max_workers: int | None = None,
-    label_prefix: str = "labels_",
+    folder_prefix: str = "labels_",
     folder: str | None = None,
 ) -> EvaluationReport:
     """
@@ -548,7 +548,7 @@ def evaluate_machine_learning_models(
         min_samples_per_class_for_calibration=min_samples_per_class_for_calibration,
         max_calibration_cv_folds=max_calibration_cv_folds,
         max_workers=max_workers,
-        label_prefix=label_prefix,
+        folder_prefix=folder_prefix,
         folder=folder,
     )
     return evaluate_at_threshold(holdout, recommendation_ratio=recommendation_ratio)

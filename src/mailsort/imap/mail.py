@@ -165,14 +165,14 @@ class ImapMailBase(AbstractMailBox):
         return any(candidate in _SKIP_FOLDER_NAMES for candidate in name_lst)
 
     def _search_email_on_server(
-        self, query_string="", label_lst=None, only_message_ids=False
+        self, query_string="", folder_lst=None, only_message_ids=False
     ):
         """
         Search emails either by a specific query or optionally limit your search to a list of labels
 
         Args:
             query_string (str): not supported yet - must be empty
-            label_lst (list): list of IMAP folders to search; if empty, every folder is searched
+            folder_lst (list): list of IMAP folders to search; if empty, every folder is searched
             only_message_ids (bool): return only the composite email IDs - default: false
 
         Returns:
@@ -181,21 +181,23 @@ class ImapMailBase(AbstractMailBox):
         return self._run_with_reconnect(
             lambda: self._search_email_on_server_impl(
                 query_string=query_string,
-                label_lst=label_lst,
+                folder_lst=folder_lst,
                 only_message_ids=only_message_ids,
             )
         )
 
     def _search_email_on_server_impl(
-        self, query_string="", label_lst=None, only_message_ids=False
+        self, query_string="", folder_lst=None, only_message_ids=False
     ):
         if query_string:
             raise NotImplementedError(
-                "Custom IMAP search queries are not supported yet, only label_lst filtering."
+                "Custom IMAP search queries are not supported yet, only folder_lst filtering."
             )
-        if label_lst is None:
-            label_lst = []
-        folder_lst = label_lst if len(label_lst) > 0 else list(self._label_dict.keys())
+        if folder_lst is None:
+            folder_lst = []
+        folder_lst = (
+            folder_lst if len(folder_lst) > 0 else list(self._label_dict.keys())
+        )
         message_id_lst = [
             f"{folder}\x1f{uid}"
             for folder in folder_lst

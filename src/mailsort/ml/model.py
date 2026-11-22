@@ -210,7 +210,7 @@ def score_messages_with_machine_learning_models(
     applying recommendation_ratio as a filter - unlike get_predictions_from_machine_learning_models,
     every message gets an entry in the result, whether or not its top label clears the threshold,
     so a caller can inspect *why* a message was or was not recommended (see
-    mailsort.base.mail.AbstractMailBox.get_label_recommendations, the dry-run/preview API this
+    mailsort.base.mail.AbstractMailBox.get_folder_recommendations, the dry-run/preview API this
     was added for).
 
     This shares its underlying per-message, per-label scores with

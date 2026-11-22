@@ -68,66 +68,66 @@ class AbstractMailBox(ABC):
     def labels(self):
         return list(self._label_dict.keys())
 
-    def download_emails_for_label(self, label):
+    def download_emails_for_folder(self, folder):
         """
-        Download emails for a specific label
+        Download emails for a specific folder
 
         Args:
-            label (str): label to download emails for
+            folder (str): folder to download emails for
 
         Returns:
             pandas.DataFrame: Email content for the downloaded emails
         """
         return self._download_messages_to_dataframe(
             message_id_lst=self._search_email_on_server(
-                label_lst=[label], only_message_ids=True
+                folder_lst=[folder], only_message_ids=True
             )
         )
 
     def filter_messages_from_server(
         self,
-        label,
+        folder,
         recommendation_ratio=0.9,
-        label_prefix: str = "labels_",
+        folder_prefix: str = "labels_",
     ):
         """
         Filter new emails based on machine learning model recommendations.
 
         This moves messages on the server, but does no inference of its own: it scores messages
-        through get_label_recommendations() - the exact same inference step
+        through get_folder_recommendations() - the exact same inference step
         'mailsort predict'/MailSorter.predict() use - and then moves only the accepted
         Predictions, so inference and mailbox mutation stay clearly separated in code, not just
         by convention. To preview what this would do, without moving, deleting or otherwise
-        modifying anything, call get_label_recommendations() directly.
+        modifying anything, call get_folder_recommendations() directly.
 
         Args:
-            label (str): Email label to filter for
+            folder (str): Email folder to filter for
             recommendation_ratio (float): Only accept recommendation above this ratio (0<r<1)
 
         Returns:
             mailsort.results.SortResult: which messages were actually moved, and to where
         """
-        prediction_lst = self.get_label_recommendations(
-            label=label,
+        prediction_lst = self.get_folder_recommendations(
+            folder=folder,
             recommendation_ratio=recommendation_ratio,
-            label_prefix=label_prefix,
+            folder_prefix=folder_prefix,
         )
         accepted_lst = [
             prediction for prediction in prediction_lst if prediction.accepted
         ]
         moved_lst = self._move_emails(
-            prediction_lst=accepted_lst, label_to_ignore=label
+            prediction_lst=accepted_lst, folder_to_ignore=folder
         )
         return SortResult(moved_lst=moved_lst)
 
-    def get_label_recommendations(
+    def get_folder_recommendations(
         self,
-        label,
+        folder,
         recommendation_ratio=0.9,
-        label_prefix: str = "labels_",
+        folder_prefix: str = "labels_",
     ):
         """
-        Score the messages currently in `label` against the trained machine learning models,
+        Score the messages currently in `folder` against the trained machine learning models,
         without moving, deleting, archiving or otherwise modifying anything on the mail server -
         a read-only dry run of filter_messages_from_server(), and the exact same inference step
         that method's moves are based on.
@@ -139,16 +139,16 @@ class AbstractMailBox(ABC):
         the same recommendation_ratio - only the move itself is left out.
 
         Args:
-            label (str): Email label/folder to fetch and score messages from
+            folder (str): Email folder to fetch and score messages from
             recommendation_ratio (float): Cutoff ratio (0<r<1) a score must clear for `accepted`
                 to be True - the same cutoff filter_messages_from_server() uses to decide whether
                 to actually move a message
-            label_prefix (str): prefix used to recognise label columns during feature encoding
+            folder_prefix (str): prefix used to recognise label columns during feature encoding
 
         Returns:
-            list[mailsort.results.Prediction]: one Prediction per message currently in `label`
+            list[mailsort.results.Prediction]: one Prediction per message currently in `folder`
         """
-        df_partial = self.download_emails_for_label(label=label)
+        df_partial = self.download_emails_for_folder(folder=folder)
         if len(df_partial) == 0:
             return []
         model_reload_dict, feature_reload_lst = self._db_ml.load_models()
@@ -156,7 +156,7 @@ class AbstractMailBox(ABC):
         # compete as a candidate - otherwise a model trained before the sorted folder was
         # ignored in training can outscore every real target folder and silently block the move.
         model_reload_dict = {
-            key: model for key, model in model_reload_dict.items() if key != label
+            key: model for key, model in model_reload_dict.items() if key != folder
         }
         if len(model_reload_dict) == 0:
             # No machine learning model has been trained yet (fit_machine_learning_model_to_database()
@@ -165,7 +165,7 @@ class AbstractMailBox(ABC):
             return [
                 Prediction(
                     message_id=message_id,
-                    source_folder=label,
+                    source_folder=folder,
                     recommended_folder=None,
                     score=0.0,
                     threshold=recommendation_ratio,
@@ -182,7 +182,7 @@ class AbstractMailBox(ABC):
             feature_lst=feature_reload_lst,
             label_lst=list(model_reload_dict.keys()),
             return_labels=False,
-            label_prefix=label_prefix,
+            folder_prefix=folder_prefix,
         )
         df_partial_features = df_partial_features.reindex(
             sorted(df_partial_features.columns), axis=1
@@ -196,7 +196,7 @@ class AbstractMailBox(ABC):
         return [
             Prediction(
                 message_id=entry["email_id"],
-                source_folder=label,
+                source_folder=folder,
                 recommended_folder=entry["recommended_label"],
                 score=entry["score"],
                 threshold=recommendation_ratio,
@@ -294,13 +294,13 @@ class AbstractMailBox(ABC):
             include_deleted=include_deleted, user_id=self._db_user_id
         )
 
-    def update_database(self, quick=False, label_lst=None, email_format=None):
+    def update_database(self, quick=False, folder_lst=None, email_format=None):
         """
         Update local email database
 
         Args:
             quick (boolean): Only add new emails, do not update existing labels - by default: False
-            label_lst (list): list of labels to be searched
+            folder_lst (list): list of folders to be searched
             email_format (str/None): Email format to download
 
         Returns:
@@ -308,14 +308,14 @@ class AbstractMailBox(ABC):
                 deleted by this call - relabeling and deletion counts are always 0 when
                 quick=True, since that mode skips both steps
         """
-        if label_lst is None:
-            label_lst = []
+        if folder_lst is None:
+            folder_lst = []
         if self._db_email is None:
             return SyncResult(
                 new_message_count=0, updated_message_count=0, deleted_message_count=0
             )
         message_id_lst = self._search_email_on_server(
-            label_lst=label_lst, only_message_ids=True
+            folder_lst=folder_lst, only_message_ids=True
         )
         (
             new_messages_lst,
@@ -395,7 +395,7 @@ class AbstractMailBox(ABC):
             )
         ]
 
-    def _move_emails(self, prediction_lst, label_to_ignore):
+    def _move_emails(self, prediction_lst, folder_to_ignore):
         """
         Move messages to their recommended folder - the only place inference results (Predictions)
         are turned into mailbox mutation, so this consumes Predictions rather than scoring
@@ -405,13 +405,13 @@ class AbstractMailBox(ABC):
             prediction_lst (list[mailsort.results.Prediction]): predictions to act on - callers
                 are expected to have already filtered this to accepted predictions, see
                 filter_messages_from_server()
-            label_to_ignore (str): folder a message must not be "moved" to because it is already
+            folder_to_ignore (str): folder a message must not be "moved" to because it is already
                 there
 
         Returns:
             list[tuple[str, str]]: (message_id, label) pairs actually moved
         """
-        label_existing = self._label_dict[label_to_ignore]
+        label_existing = self._label_dict[folder_to_ignore]
         moved_lst = []
         for prediction in tqdm(iterable=prediction_lst, desc="Move emails"):
             label_add = prediction.recommended_folder
@@ -433,14 +433,14 @@ class AbstractMailBox(ABC):
 
     @abstractmethod
     def _search_email_on_server(
-        self, query_string="", label_lst=None, only_message_ids=False
+        self, query_string="", folder_lst=None, only_message_ids=False
     ):
         """
         Search emails either by a specific query or optionally limit your search to a list of labels
 
         Args:
             query_string (str): query string to search for
-            label_lst (list): list of labels to be searched
+            folder_lst (list): list of folders to be searched
             only_message_ids (bool): return only the email IDs not the thread IDs - default: false
 
         Returns:

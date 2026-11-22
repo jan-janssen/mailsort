@@ -156,7 +156,7 @@ class EvaluateAtThresholdTest(TestCase):
 
     def test_score_exactly_at_threshold_is_not_accepted(self):
         # Strict ">" cutoff, matching mailsort.ml.model.score_messages_with_machine_learning_models
-        # and AbstractMailBox.get_label_recommendations() - a tie must not be treated as a win.
+        # and AbstractMailBox.get_folder_recommendations() - a tie must not be treated as a win.
         holdout = _holdout([_scored("id1", ["Inbox"], "Inbox", score=0.9)])
 
         report = evaluate_at_threshold(holdout, recommendation_ratio=0.9)

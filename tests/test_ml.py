@@ -226,7 +226,7 @@ class TestMlEncoding(unittest.TestCase):
 
     def test_encode_df_for_machine_learning_no_feature_list(self):
         df_features = encode_df_for_machine_learning(
-            self.df, return_labels=False, label_prefix="labels_Label_"
+            self.df, return_labels=False, folder_prefix="labels_Label_"
         )
         self.assertIn("email_id", df_features.columns)
         self.assertEqual(len(df_features), 2)
@@ -238,7 +238,7 @@ class TestMlEncoding(unittest.TestCase):
             self.df,
             feature_lst=features,
             return_labels=False,
-            label_prefix="labels_Label_",
+            folder_prefix="labels_Label_",
         )
         self.assertEqual(
             set(df_features.columns),
@@ -253,7 +253,7 @@ class TestMlEncoding(unittest.TestCase):
             feature_lst=features,
             label_lst=labels,
             return_labels=True,
-            label_prefix="labels_Label_",
+            folder_prefix="labels_Label_",
         )
         self.assertEqual(
             set(df_features.columns),
@@ -263,7 +263,7 @@ class TestMlEncoding(unittest.TestCase):
 
     def test_encode_df_for_machine_learning_return_labels(self):
         df_features, df_labels = encode_df_for_machine_learning(
-            self.df, return_labels=True, label_prefix="labels_Label_"
+            self.df, return_labels=True, folder_prefix="labels_Label_"
         )
         self.assertIn("labels_Label_1", df_labels.columns)
         self.assertEqual(df_labels["labels_Label_1"].tolist(), [1, 0])
@@ -494,7 +494,7 @@ class TestMlModel(unittest.TestCase):
             df[col] = df[col].apply(ast.literal_eval)
 
         df_features, df_labels = encode_df_for_machine_learning(
-            df, return_labels=True, label_prefix="labels_Label_"
+            df, return_labels=True, folder_prefix="labels_Label_"
         )
         df_features = df_features.loc[:, ~df_features.columns.duplicated()]
         self.assertEqual(len(df_features), 12)
@@ -545,7 +545,7 @@ class TestMlModel(unittest.TestCase):
             df[col] = df[col].apply(ast.literal_eval)
 
         df_features, df_labels = encode_df_for_machine_learning(
-            df, return_labels=True, label_prefix="labels_Label_"
+            df, return_labels=True, folder_prefix="labels_Label_"
         )
         df_features = df_features.loc[:, ~df_features.columns.duplicated()]
         self.assertEqual(len(df_features), 12)

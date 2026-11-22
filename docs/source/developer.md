@@ -26,17 +26,17 @@ with MailSorter(
     predictions = sorter.predict("MailSortInbox")
     sort_result = sorter.sort("MailSortInbox")
 ```
-- `sync(quick=False, label_lst=None, email_format=None)` - update the local database from the mail server; returns
+- `sync(quick=False, folder_lst=None, email_format=None)` - update the local database from the mail server; returns
   a `SyncResult` with `new_message_count`, `updated_message_count` and `deleted_message_count`.
 - `train(folder, n_estimators=100, max_features=400, random_state=42, bootstrap=True, include_deleted=False, max_workers=None, calibrate=True, min_samples_per_class_for_calibration=20, max_calibration_cv_folds=5)`
   - (re-)train one machine learning model per folder on the local database; returns a `TrainResult` with
   `trained_label_lst` and `model_count`. Each folder's classifier is calibrated when (and only when) it has enough
   training data to do so safely - see [Evaluation and confidence](evaluation) and `mailsort.ml.calibration` below;
   pass `calibrate=False` to keep every folder's raw score instead.
-- `predict(folder, recommendation_ratio=0.9, label_prefix="labels_")` - read-only; returns a `list[Prediction]`
+- `predict(folder, recommendation_ratio=0.9, folder_prefix="labels_")` - read-only; returns a `list[Prediction]`
   without moving, deleting or otherwise modifying anything on the server. See "Dry run / recommendation mode"
   below.
-- `sort(folder, recommendation_ratio=0.9, label_prefix="labels_")` - scores messages exactly as `predict()` does
+- `sort(folder, recommendation_ratio=0.9, folder_prefix="labels_")` - scores messages exactly as `predict()` does
   with the same arguments, then moves the ones that clear `recommendation_ratio`; returns a `SortResult` with
   `moved_lst` and `moved_count`. This is the only `MailSorter` method that changes the mailbox.
   `recommendation_ratio` is a cutoff on a model score, not a guaranteed probability of being correct - see
@@ -47,7 +47,7 @@ with MailSorter(
 `sorter.close()` directly) closes the wrapped mailbox, exactly like using `Imap` as a context manager directly.
 
 `MailSorter` only calls the public `AbstractMailBox` interface - `close()`, `update_database()`,
-`fit_machine_learning_model_to_database()`, `get_label_recommendations()` and `filter_messages_from_server()` - so
+`fit_machine_learning_model_to_database()`, `get_folder_recommendations()` and `filter_messages_from_server()` - so
 it works unmodified with any `AbstractMailBox` subclass, not just `Imap`. A package building its own mailbox
 backend on top of `mailsort` (as `gmailsorter` does for Gmail) can wrap that backend in the same `MailSorter`
 without reimplementing it - see "The mailsort.api module" below.
@@ -114,7 +114,7 @@ df = imap.get_all_emails_in_database()
 ### Download a specific folder from the email server
 Download emails currently in the folder `"MyFolder"` from the email server:
 ```
-df = imap.download_emails_for_label(label="MyFolder")
+df = imap.download_emails_for_folder(folder="MyFolder")
 ```
 In this case the emails are not stored in the local database.
 
@@ -166,9 +166,9 @@ print(status.trained_label_lst, status.feature_count)
 Assign new emails in the folder `"MailSortInbox"` to the folder that best matches them:
 ```
 imap.filter_messages_from_server(
-    label="MailSortInbox",
+    folder="MailSortInbox",
     recommendation_ratio=0.9,
-    label_prefix="labels_",
+    folder_prefix="labels_",
 )
 ```
 It checks the server for new emails in the given folder, reloads the machine learning models from the local
@@ -204,16 +204,16 @@ for prediction in sorter.predict("MailSortInbox"):
 ```
 
 ## Dry run / recommendation mode
-`get_label_recommendations()` runs the exact same download and scoring steps as
+`get_folder_recommendations()` runs the exact same download and scoring steps as
 `filter_messages_from_server()`, but only returns the result instead of acting on it - it never moves, deletes,
 archives or otherwise modifies anything on the server, so it is safe to call at any time, including before you
 trust the model with your mailbox. It is `MailSorter.predict()`'s implementation - `predict()` is a pure
 passthrough to it - so both already return the same `list[Prediction]`:
 ```
-predictions = imap.get_label_recommendations(
-    label="MailSortInbox",
+predictions = imap.get_folder_recommendations(
+    folder="MailSortInbox",
     recommendation_ratio=0.9,
-    label_prefix="labels_",
+    folder_prefix="labels_",
 )
 ```
 Each `Prediction` is a frozen, JSON-serializable dataclass - a first-class, side-effect-free representation of one
@@ -236,8 +236,8 @@ classification result - with:
 
 `filter_messages_from_server()` scores messages through this exact same call and then moves only the accepted
 predictions - inference and mailbox mutation are separated in code, not just by convention, so a message can only
-be moved after having gone through `get_label_recommendations()` first. This also means
-`filter_messages_from_server()` inherits `get_label_recommendations()`'s safe handling of an untrained database
+be moved after having gone through `get_folder_recommendations()` first. This also means
+`filter_messages_from_server()` inherits `get_folder_recommendations()`'s safe handling of an untrained database
 (every message abstains rather than the machine learning pipeline running against zero models).
 
 For example, to only print the messages that would actually be moved:

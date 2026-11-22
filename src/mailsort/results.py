@@ -76,7 +76,7 @@ class Prediction:
     side-effect-free representation of inference, deliberately kept separate from mailbox
     mutation.
 
-    See AbstractMailBox.get_label_recommendations() / mailsort.MailSorter.predict(), which
+    See AbstractMailBox.get_folder_recommendations() / mailsort.MailSorter.predict(), which
     produce these; producing a Prediction never moves, deletes or otherwise modifies anything on
     the mail server. Moving messages (AbstractMailBox.filter_messages_from_server() /
     mailsort.MailSorter.sort()) consumes the `accepted` Predictions from that same inference step

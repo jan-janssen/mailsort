@@ -196,7 +196,7 @@ class TestImapMailBase(TestCase):
         service.uid.return_value = ("OK", [b"1 2"])
         mail = ImapMailBase(mail_service=service)
 
-        ids = mail._search_email_on_server(label_lst=["INBOX"], only_message_ids=True)
+        ids = mail._search_email_on_server(folder_lst=["INBOX"], only_message_ids=True)
 
         service.select.assert_called_once_with('"INBOX"')
         service.uid.assert_called_once_with("search", None, "ALL")
@@ -229,7 +229,7 @@ class TestImapMailBase(TestCase):
         service.uid.return_value = ("OK", [b"1 2"])
         mail = ImapMailBase(mail_service=service)
 
-        result = mail._search_email_on_server(label_lst=["INBOX"])
+        result = mail._search_email_on_server(folder_lst=["INBOX"])
 
         self.assertEqual(result, [{"id": "INBOX\x1f1"}, {"id": "INBOX\x1f2"}])
 
@@ -238,7 +238,7 @@ class TestImapMailBase(TestCase):
         service.select.return_value = ("NO", [b"failed"])
         mail = ImapMailBase(mail_service=service)
 
-        ids = mail._search_email_on_server(label_lst=["INBOX"], only_message_ids=True)
+        ids = mail._search_email_on_server(folder_lst=["INBOX"], only_message_ids=True)
 
         service.uid.assert_not_called()
         self.assertEqual(ids, [])
@@ -249,7 +249,7 @@ class TestImapMailBase(TestCase):
         service.uid.return_value = ("NO", [None])
         mail = ImapMailBase(mail_service=service)
 
-        ids = mail._search_email_on_server(label_lst=["INBOX"], only_message_ids=True)
+        ids = mail._search_email_on_server(folder_lst=["INBOX"], only_message_ids=True)
 
         self.assertEqual(ids, [])
 
@@ -259,7 +259,7 @@ class TestImapMailBase(TestCase):
         service.uid.return_value = ("OK", [None])
         mail = ImapMailBase(mail_service=service)
 
-        ids = mail._search_email_on_server(label_lst=["INBOX"], only_message_ids=True)
+        ids = mail._search_email_on_server(folder_lst=["INBOX"], only_message_ids=True)
 
         self.assertEqual(ids, [])
 
@@ -468,7 +468,7 @@ class TestImapMailBase(TestCase):
         service.select.side_effect = imaplib.IMAP4.abort("connection lost")
 
         with self.assertRaises(imaplib.IMAP4.abort):
-            mail._search_email_on_server(label_lst=["INBOX"], only_message_ids=True)
+            mail._search_email_on_server(folder_lst=["INBOX"], only_message_ids=True)
 
     def test_search_reconnects_and_retries_once_after_abort(self):
         dead_service = self._create_mock_service_with_folders()
@@ -478,7 +478,7 @@ class TestImapMailBase(TestCase):
         fresh_service.uid.return_value = ("OK", [b"3"])
         mail = ReconnectingImapMailBase(service_lst=[dead_service, fresh_service])
 
-        ids = mail._search_email_on_server(label_lst=["INBOX"], only_message_ids=True)
+        ids = mail._search_email_on_server(folder_lst=["INBOX"], only_message_ids=True)
 
         self.assertEqual(mail.reconnect_count, 1)
         self.assertEqual(ids, ["INBOX\x1f3"])
@@ -508,7 +508,7 @@ class TestImapMailBase(TestCase):
         )
 
         with self.assertRaises(imaplib.IMAP4.abort):
-            mail._search_email_on_server(label_lst=["INBOX"], only_message_ids=True)
+            mail._search_email_on_server(folder_lst=["INBOX"], only_message_ids=True)
 
         self.assertEqual(mail.reconnect_count, 1)
 

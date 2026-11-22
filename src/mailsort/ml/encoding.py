@@ -9,7 +9,7 @@ def encode_df_for_machine_learning(
     feature_lst: list[str] | np.ndarray | None = None,
     label_lst: list[str] | np.ndarray | None = None,
     return_labels: bool = False,
-    label_prefix: str = "labels_",
+    folder_prefix: str = "labels_",
 ) -> pandas.DataFrame | tuple[pandas.DataFrame, pandas.DataFrame]:
     """
     Encode a given dataframe for machine learning. Either based on a list of existing features and labels or by
@@ -51,7 +51,7 @@ def encode_df_for_machine_learning(
     else:
         if len(label_lst) == 0:
             label_lst = [
-                label for label in df_all_encode.columns.values if label_prefix in label
+                label for label in df_all_encode.columns.values if folder_prefix in label
             ]
         return df_all_features, df_all_encode[label_lst]
 
