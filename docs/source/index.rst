@@ -6,7 +6,7 @@
 Similarity based email sorting for any IMAP mail server
 =========================================================
 `mailsort` reduces the interruption caused by the increase of daily emails by automatically sorting your emails into 
-folders (IMAP labels) based on the similarity of new messages to the ones you have already sorted. It uses machine 
+IMAP folders based on the similarity of new messages to the ones you have already sorted. It uses machine 
 learning to learn from your existing folder assignments and suggests or applies folders. 
 
 This folder based approach allows you to focus on the most important emails first, while still being able to access less
@@ -18,7 +18,7 @@ helps you manage your emails.
 yourself, on your own schedule (for example from cron), against your own local database. Your emails belong to you.
 
 `mailsort` connects to any IMAP mail server, stores your emails locally in an SQLite database, and trains a machine 
-learning model on the folders (IMAP labels) you have already assigned to your emails, and uses that model to suggest or 
+learning model on the IMAP folders you have already assigned to your emails, and uses that model to suggest or 
 apply folders to new messages. 
 
 Motivation

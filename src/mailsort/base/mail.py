@@ -8,7 +8,7 @@ from mailsort.ml import (
     DEFAULT_MIN_SAMPLES_PER_CLASS_FOR_CALIBRATION,
     encode_df_for_machine_learning,
     fit_machine_learning_models,
-    remove_folder_from_labels,
+    remove_sorted_folder,
     score_messages_with_machine_learning_models,
 )
 from mailsort.results import Prediction, ScoreType, SortResult, SyncResult, TrainResult
@@ -43,8 +43,8 @@ class AbstractMailBox(ABC):
         self._db_user_id = db_user_id
         self._userid = user_id
         self._email_download_format = email_download_format
-        self._label_dict = self._get_label_translate_dict()
-        self._label_dict_inverse = {v: k for k, v in self._label_dict.items()}
+        self._folder_dict = self._get_folder_translate_dict()
+        self._folder_dict_inverse = {v: k for k, v in self._folder_dict.items()}
 
     def close(self) -> None:  # noqa: B027
         """
@@ -65,8 +65,8 @@ class AbstractMailBox(ABC):
         return False
 
     @property
-    def labels(self):
-        return list(self._label_dict.keys())
+    def folders(self):
+        return list(self._folder_dict.keys())
 
     def download_emails_for_folder(self, folder):
         """
@@ -133,7 +133,7 @@ class AbstractMailBox(ABC):
         that method's moves are based on.
 
         This reuses the exact same download and feature-encoding steps as
-        filter_messages_from_server(), and the exact same underlying per-label model scores (see
+        filter_messages_from_server(), and the exact same underlying per-folder model scores (see
         mailsort.ml.model.score_messages_with_machine_learning_models), so `accepted` below always
         agrees with whether filter_messages_from_server() would move that message for real, given
         the same recommendation_ratio - only the move itself is left out.
@@ -143,7 +143,7 @@ class AbstractMailBox(ABC):
             recommendation_ratio (float): Cutoff ratio (0<r<1) a score must clear for `accepted`
                 to be True - the same cutoff filter_messages_from_server() uses to decide whether
                 to actually move a message
-            folder_prefix (str): prefix used to recognise label columns during feature encoding
+            folder_prefix (str): prefix used to recognise folder columns during feature encoding
 
         Returns:
             list[mailsort.results.Prediction]: one Prediction per message currently in `folder`
@@ -180,8 +180,8 @@ class AbstractMailBox(ABC):
         df_partial_features = encode_df_for_machine_learning(
             df=df_partial,
             feature_lst=feature_reload_lst,
-            label_lst=list(model_reload_dict.keys()),
-            return_labels=False,
+            folder_lst=list(model_reload_dict.keys()),
+            return_folders=False,
             folder_prefix=folder_prefix,
         )
         df_partial_features = df_partial_features.reindex(
@@ -197,7 +197,7 @@ class AbstractMailBox(ABC):
             Prediction(
                 message_id=entry["email_id"],
                 source_folder=folder,
-                recommended_folder=entry["recommended_label"],
+                recommended_folder=entry["recommended_folder"],
                 score=entry["score"],
                 threshold=recommendation_ratio,
                 accepted=entry["threshold_reached"],
@@ -230,7 +230,7 @@ class AbstractMailBox(ABC):
             folder (str): the folder that gets sorted, e.g. "MailSortInbox". It is always ignored
                 during training - no model is trained for it and messages found only in it are not
                 used as training data - because no message is meant to stay in it. See
-                mailsort.ml.encoding.remove_folder_from_labels()
+                mailsort.ml.encoding.remove_sorted_folder()
             n_estimators (int): Number of estimators
             max_features (int): Number of features
             random_state (int): Random state
@@ -247,12 +247,12 @@ class AbstractMailBox(ABC):
             max_calibration_cv_folds (int): see mailsort.ml.calibration.calibration_cv_folds()
 
         Returns:
-            mailsort.results.TrainResult: the folders/labels a model was trained for
+            mailsort.results.TrainResult: the folders/folders a model was trained for
         """
         df_all = self.get_all_emails_in_database(include_deleted=include_deleted)
-        df_all = remove_folder_from_labels(df=df_all, folder=folder)
+        df_all = remove_sorted_folder(df=df_all, folder=folder)
         df_all_features, df_all_folders = encode_df_for_machine_learning(
-            df=df_all, feature_lst=[], label_lst=[], return_labels=True
+            df=df_all, feature_lst=[], folder_lst=[], return_folders=True
         )
         df_all_features = df_all_features.loc[
             :, ~df_all_features.columns.duplicated()
@@ -299,13 +299,13 @@ class AbstractMailBox(ABC):
         Update local email database
 
         Args:
-            quick (boolean): Only add new emails, do not update existing labels - by default: False
+            quick (boolean): Only add new emails, do not update existing folders - by default: False
             folder_lst (list): list of folders to be searched
             email_format (str/None): Email format to download
 
         Returns:
-            mailsort.results.SyncResult: counts of messages newly stored, relabeled and marked
-                deleted by this call - relabeling and deletion counts are always 0 when
+            mailsort.results.SyncResult: counts of messages newly stored, reassigned and marked
+                deleted by this call - reassigning and deletion counts are always 0 when
                 quick=True, since that mode skips both steps
         """
         if folder_lst is None:
@@ -319,9 +319,9 @@ class AbstractMailBox(ABC):
         )
         (
             new_messages_lst,
-            message_label_updates_lst,
+            message_folder_updates_lst,
             deleted_messages_lst,
-        ) = self._db_email.get_labels_to_update(
+        ) = self._db_email.get_folders_to_update(
             message_id_lst=message_id_lst, user_id=self._db_user_id
         )
         updated_message_count = 0
@@ -330,14 +330,14 @@ class AbstractMailBox(ABC):
             self._db_email.mark_emails_as_deleted(
                 message_id_lst=deleted_messages_lst, user_id=self._db_user_id
             )
-            self._db_email.update_labels(
-                message_id_lst=message_label_updates_lst,
-                message_meta_lst=self._get_labels_for_emails(
-                    message_id_lst=message_label_updates_lst
+            self._db_email.update_folders(
+                message_id_lst=message_folder_updates_lst,
+                message_meta_lst=self._get_folders_for_emails(
+                    message_id_lst=message_folder_updates_lst
                 ),
                 user_id=self._db_user_id,
             )
-            updated_message_count = len(message_label_updates_lst)
+            updated_message_count = len(message_folder_updates_lst)
             deleted_message_count = len(deleted_messages_lst)
         self._store_emails_in_database(
             message_id_lst=new_messages_lst, email_format=email_format
@@ -378,20 +378,20 @@ class AbstractMailBox(ABC):
             ]
         )
 
-    def _get_labels_for_emails(self, message_id_lst):
+    def _get_folders_for_emails(self, message_id_lst):
         """
-        Get labels for a list of emails
+        Get folders for a list of emails
 
         Args:
             message_id_lst (list): list of emails IDs
 
         Returns:
-            list: Nested list of email labels for each email
+            list: Nested list of email folders for each email
         """
         return [
-            self._get_labels_for_email(message_id=message_id)
+            self._get_folders_for_email(message_id=message_id)
             for message_id in tqdm(
-                iterable=message_id_lst, desc="Get labels for emails"
+                iterable=message_id_lst, desc="Get folders for emails"
             )
         ]
 
@@ -409,19 +409,19 @@ class AbstractMailBox(ABC):
                 there
 
         Returns:
-            list[tuple[str, str]]: (message_id, label) pairs actually moved
+            list[tuple[str, str]]: (message_id, folder) pairs actually moved
         """
-        label_existing = self._label_dict[folder_to_ignore]
+        folder_existing = self._folder_dict[folder_to_ignore]
         moved_lst = []
         for prediction in tqdm(iterable=prediction_lst, desc="Move emails"):
-            label_add = prediction.recommended_folder
-            if label_add is not None and label_add != label_existing:
-                self._modify_message_labels(
+            folder_add = prediction.recommended_folder
+            if folder_add is not None and folder_add != folder_existing:
+                self._modify_message_folders(
                     message_id=prediction.message_id,
-                    label_id_remove_lst=[label_existing],
-                    label_id_add_lst=[label_add],
+                    folder_id_remove_lst=[folder_existing],
+                    folder_id_add_lst=[folder_add],
                 )
-                moved_lst.append((prediction.message_id, label_add))
+                moved_lst.append((prediction.message_id, folder_add))
         return moved_lst
 
     def _store_emails_in_database(self, message_id_lst, email_format=None):
@@ -436,7 +436,7 @@ class AbstractMailBox(ABC):
         self, query_string="", folder_lst=None, only_message_ids=False
     ):
         """
-        Search emails either by a specific query or optionally limit your search to a list of labels
+        Search emails either by a specific query or optionally limit your search to a list of folders
 
         Args:
             query_string (str): query string to search for
@@ -462,28 +462,28 @@ class AbstractMailBox(ABC):
         """
 
     @abstractmethod
-    def _get_label_translate_dict(self):
+    def _get_folder_translate_dict(self):
         """
         Returns:
-            dict: mapping of label/folder display name to the backend-specific label/folder id
+            dict: mapping of folder display name to the backend-specific folder id
         """
 
     @abstractmethod
-    def _modify_message_labels(
-        self, message_id, label_id_remove_lst=None, label_id_add_lst=None
+    def _modify_message_folders(
+        self, message_id, folder_id_remove_lst=None, folder_id_add_lst=None
     ):
         """
-        Apply a label/folder change to a single email message.
+        Apply a folder change to a single email message.
         """
 
     @abstractmethod
-    def _get_labels_for_email(self, message_id):
+    def _get_folders_for_email(self, message_id):
         """
         Args:
             message_id (str): id used by this backend to uniquely identify the email
 
         Returns:
-            list: list of labels/folders currently assigned to the email
+            list: list of folders/folders currently assigned to the email
         """
 
     @abstractmethod

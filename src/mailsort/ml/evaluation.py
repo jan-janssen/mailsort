@@ -60,7 +60,7 @@ from sklearn.model_selection import GroupShuffleSplit
 from mailsort.ml.calibration import is_calibrated
 from mailsort.ml.encoding import (
     encode_df_for_machine_learning,
-    remove_folder_from_labels,
+    remove_sorted_folder,
 )
 from mailsort.ml.model import (
     fit_machine_learning_models,
@@ -108,7 +108,7 @@ class ScoredTestMessage:
 
     Attributes:
         message_id: the message's id
-        true_folder_lst: the message's actual folder(s) that were also part of the trained label
+        true_folder_lst: the message's actual folder(s) that were also part of the trained folder
             set - folders the model had no way to learn are excluded here, see
             HoldoutScores.excluded_test_message_count
         recommended_folder: the folder the model scores highest for this message
@@ -135,9 +135,9 @@ class HoldoutScores:
     Attributes:
         train_message_count: messages used to train the held-out models
         test_message_count: held-out messages that were actually scored (had at least one true
-            folder in common with the trained label set)
+            folder in common with the trained folder set)
         excluded_test_message_count: held-out messages skipped because none of their folder(s)
-            were part of the trained label set - see the module docstring
+            were part of the trained folder set - see the module docstring
         trained_folder_lst: folders a held-out model was trained for
         calibration_status: whether each trained folder's classifier ended up calibrated - see
             mailsort.ml.calibration.should_calibrate()
@@ -185,14 +185,14 @@ def score_holdout_split(
         min_samples_per_class_for_calibration: see mailsort.ml.calibration.should_calibrate()
         max_calibration_cv_folds: see mailsort.ml.calibration.calibration_cv_folds()
         max_workers: maximum number of worker processes to train models in parallel
-        folder_prefix: prefix used to recognise label columns during feature encoding
+        folder_prefix: prefix used to recognise folder columns during feature encoding
         folder: the folder that gets sorted, ignored as in training - see
-            remove_folder_from_labels()
+            remove_sorted_folder()
 
     Returns:
         HoldoutScores
     """
-    df = remove_folder_from_labels(df=df, folder=folder)
+    df = remove_sorted_folder(df=df, folder=folder)
     df_train, df_test = thread_grouped_train_test_split(
         df, test_size=test_size, random_state=random_state
     )
@@ -213,11 +213,11 @@ def score_holdout_split(
     # sorting columns is duplicated here rather than shared, to keep that method's existing,
     # separately-tested feature-preparation call sites stable; see mailsort/training.py for the
     # same trade-off made previously.
-    df_train_features, df_train_labels = encode_df_for_machine_learning(
+    df_train_features, df_train_folders = encode_df_for_machine_learning(
         df=df_train,
         feature_lst=[],
-        label_lst=[],
-        return_labels=True,
+        folder_lst=[],
+        return_folders=True,
         folder_prefix=folder_prefix,
     )
     df_train_features = df_train_features.loc[
@@ -228,7 +228,7 @@ def score_holdout_split(
     )
     model_dict = fit_machine_learning_models(
         df_all_features=df_train_features,
-        df_all_folders=df_train_labels,
+        df_all_folders=df_train_folders,
         n_estimators=n_estimators,
         max_features=max_features,
         random_state=random_state,
@@ -238,7 +238,7 @@ def score_holdout_split(
         min_samples_per_class_for_calibration=min_samples_per_class_for_calibration,
         max_calibration_cv_folds=max_calibration_cv_folds,
     )
-    trained_label_set = set(model_dict.keys())
+    trained_folder_set = set(model_dict.keys())
     # MachineLearningDatabase.store_models() strips "email_id" from the feature list it persists
     # (see mailsort/ml/database.py) before AbstractMailBox.get_folder_recommendations() reloads
     # and reuses it - mirrored here, since encode_df_for_machine_learning() appends its own
@@ -256,8 +256,8 @@ def score_holdout_split(
         df_test_features = encode_df_for_machine_learning(
             df=df_test,
             feature_lst=trained_feature_lst,
-            label_lst=list(trained_label_set),
-            return_labels=False,
+            folder_lst=list(trained_folder_set),
+            return_folders=False,
             folder_prefix=folder_prefix,
         )
         df_test_features = df_test_features.reindex(
@@ -273,7 +273,7 @@ def score_holdout_split(
 
     for _, row in df_test.iterrows():
         true_folder_lst = [
-            folder for folder in row["labels"] if folder in trained_label_set
+            folder for folder in row["labels"] if folder in trained_folder_set
         ]
         if not true_folder_lst:
             excluded_test_message_count += 1
@@ -294,7 +294,7 @@ def score_holdout_split(
                 ScoredTestMessage(
                     message_id=row["id"],
                     true_folder_lst=true_folder_lst,
-                    recommended_folder=entry["recommended_label"],
+                    recommended_folder=entry["recommended_folder"],
                     score=entry["score"],
                     calibrated=entry["calibrated"],
                 )
@@ -304,9 +304,9 @@ def score_holdout_split(
         train_message_count=len(df_train),
         test_message_count=len(scored_message_lst),
         excluded_test_message_count=excluded_test_message_count,
-        trained_folder_lst=sorted(trained_label_set),
+        trained_folder_lst=sorted(trained_folder_set),
         calibration_status={
-            label: is_calibrated(model) for label, model in model_dict.items()
+            folder: is_calibrated(model) for folder, model in model_dict.items()
         },
         scored_message_lst=scored_message_lst,
     )

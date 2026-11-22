@@ -176,7 +176,7 @@ database and tries to predict the correct folder for these emails. `recommendati
 score must clear to actually move the email - a threshold on a classifier score, not a guaranteed probability of
 being correct (see [Evaluation and confidence](evaluation) for what the score actually is and how to check what a
 given threshold achieves on your own data with `mailsort.evaluation`/`mailsort evaluate`). It returns a
-`SortResult` with the `(message_id, label)` pairs actually moved (`moved_lst`) and how many that is
+`SortResult` with the `(message_id, folder)` pairs actually moved (`moved_lst`) and how many that is
 (`moved_count`).
 
 ### Calibration

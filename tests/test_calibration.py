@@ -10,7 +10,7 @@ from mailsort.ml.calibration import (
     is_calibrated,
     positive_class_probability,
     should_calibrate,
-    train_label_classifier,
+    train_folder_classifier,
 )
 
 
@@ -57,7 +57,7 @@ class CalibrationCvFoldsTest(TestCase):
         self.assertEqual(calibration_cv_folds(y, max_folds=5), 2)
 
 
-class TrainLabelClassifierTest(TestCase):
+class TrainFolderClassifierTest(TestCase):
     def setUp(self):
         rng = np.random.RandomState(0)
         self.X = pd.DataFrame(
@@ -68,7 +68,7 @@ class TrainLabelClassifierTest(TestCase):
         self.y_scarce = _binary_series(positive_count=3, negative_count=57)
 
     def test_calibrate_false_returns_a_raw_forest_even_with_plenty_of_data(self):
-        model = train_label_classifier(
+        model = train_folder_classifier(
             n_estimators=10,
             random_state=42,
             bootstrap=True,
@@ -82,7 +82,7 @@ class TrainLabelClassifierTest(TestCase):
         self.assertFalse(is_calibrated(model))
 
     def test_insufficient_data_falls_back_to_a_raw_forest(self):
-        model = train_label_classifier(
+        model = train_folder_classifier(
             n_estimators=10,
             random_state=42,
             bootstrap=True,
@@ -97,7 +97,7 @@ class TrainLabelClassifierTest(TestCase):
         self.assertFalse(is_calibrated(model))
 
     def test_enough_data_calibrates(self):
-        model = train_label_classifier(
+        model = train_folder_classifier(
             n_estimators=10,
             random_state=42,
             bootstrap=True,
@@ -112,7 +112,7 @@ class TrainLabelClassifierTest(TestCase):
         self.assertTrue(is_calibrated(model))
 
     def test_calibrated_model_still_predicts_for_every_row(self):
-        model = train_label_classifier(
+        model = train_folder_classifier(
             n_estimators=10,
             random_state=42,
             bootstrap=True,

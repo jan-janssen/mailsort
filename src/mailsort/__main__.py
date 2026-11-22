@@ -229,7 +229,7 @@ def _add_recommendation_arguments(parser):
     parser.add_argument(
         "--folder-prefix",
         default=_DEFAULT_FOLDER_PREFIX,
-        help="Prefix used to recognise label columns during feature encoding - only needs "
+        help="Prefix used to recognise folder columns during feature encoding - only needs "
         f"to change if you customised this in the Python API - default: {_DEFAULT_FOLDER_PREFIX!r} .",
     )
 
@@ -238,8 +238,8 @@ def _build_parser():
     parser = argparse.ArgumentParser(
         prog="mailsort",
         description=(
-            "Assign labels to emails on any IMAP mail server based on their similarity to "
-            "other emails already assigned to the same label."
+            "Assign folders to emails on any IMAP mail server based on their similarity to "
+            "other emails already assigned to the same folder."
         ),
         epilog="""\
 examples:
@@ -287,7 +287,7 @@ Run `mailsort <command> --help` for the arguments of an individual command.
     sync_parser.add_argument(
         "--quick",
         action="store_true",
-        help="Only add new emails, skip re-checking labels of already-known emails.",
+        help="Only add new emails, skip re-checking folders of already-known emails.",
     )
     sync_parser.add_argument(
         "--folder",

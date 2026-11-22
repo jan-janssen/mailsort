@@ -52,7 +52,7 @@ class DatabaseTest(TestCase):
         self.assertEqual(self.database.count_emails(include_deleted=True), 1)
         self.assertEqual(self.database.count_emails(include_deleted=False), 0)
 
-    def test_get_emails_by_label(self):
+    def test_get_emails_by_folder(self):
         self.assertEqual(
             self.database.get_emails_by_folder(
                 folder_id="Label_123"
@@ -93,33 +93,33 @@ class DatabaseTest(TestCase):
         self.assertEqual(len(self.database.get_all_emails(include_deleted=False)), 0)
         self.assertEqual(len(self.database.get_all_emails(include_deleted=True)), 1)
 
-    def test_get_labels_to_update(self):
+    def test_get_folders_to_update(self):
         # All new
-        new_messages_lst, message_label_updates_lst, deleted_messages_lst = (
-            self.database.get_labels_to_update(message_id_lst=["myid456", "myid789"])
+        new_messages_lst, message_folder_updates_lst, deleted_messages_lst = (
+            self.database.get_folders_to_update(message_id_lst=["myid456", "myid789"])
         )
         self.assertEqual(new_messages_lst, ["myid456", "myid789"])
-        self.assertEqual(message_label_updates_lst, [])
+        self.assertEqual(message_folder_updates_lst, [])
         self.assertEqual(deleted_messages_lst, ["myid123"])
 
         # All updates
-        new_messages_lst, message_label_updates_lst, deleted_messages_lst = (
-            self.database.get_labels_to_update(message_id_lst=["myid123"])
+        new_messages_lst, message_folder_updates_lst, deleted_messages_lst = (
+            self.database.get_folders_to_update(message_id_lst=["myid123"])
         )
         self.assertEqual(new_messages_lst, [])
-        self.assertEqual(message_label_updates_lst, ["myid123"])
+        self.assertEqual(message_folder_updates_lst, ["myid123"])
         self.assertEqual(deleted_messages_lst, [])
 
         # All deleted
-        new_messages_lst, message_label_updates_lst, deleted_messages_lst = (
-            self.database.get_labels_to_update(message_id_lst=[])
+        new_messages_lst, message_folder_updates_lst, deleted_messages_lst = (
+            self.database.get_folders_to_update(message_id_lst=[])
         )
         self.assertEqual(new_messages_lst, [])
-        self.assertEqual(message_label_updates_lst, [])
+        self.assertEqual(message_folder_updates_lst, [])
         self.assertEqual(deleted_messages_lst, ["myid123"])
 
-    def test_update_labels(self):
-        self.database.update_labels(
+    def test_update_folders(self):
+        self.database.update_folders(
             message_id_lst=["myid123"], message_meta_lst=[["important", "Label_456"]]
         )
         self.assertEqual(
@@ -134,7 +134,7 @@ class DatabaseTest(TestCase):
             ).id.values.tolist(),
             ["myid123"],
         )
-        self.database.update_labels(
+        self.database.update_folders(
             message_id_lst=["myid123"], message_meta_lst=[["important"]]
         )
         self.assertEqual(
@@ -143,7 +143,7 @@ class DatabaseTest(TestCase):
             ).id.values.tolist(),
             [],
         )
-        self.database.update_labels(
+        self.database.update_folders(
             message_id_lst=["myid123"], message_meta_lst=[["important"]]
         )
         self.assertEqual(
@@ -244,7 +244,7 @@ class DatabaseTest(TestCase):
         self.assertIsNone(self.database.get_all_emails().iloc[0]["from"])
 
 
-class LegacyEmailLabelsMigrationTest(TestCase):
+class LegacyTableMigrationTest(TestCase):
     def _create_legacy_database(self, engine):
         with engine.begin() as connection:
             connection.execute(
@@ -267,7 +267,7 @@ class LegacyEmailLabelsMigrationTest(TestCase):
                 )
             )
 
-    def test_existing_email_labels_table_is_renamed_and_keeps_its_data(self):
+    def test_existing_legacy_table_is_renamed_and_keeps_its_data(self):
         engine = create_engine("sqlite:///:memory:")
         self._create_legacy_database(engine)
 

@@ -126,10 +126,10 @@ class TestImapServiceIntegration(unittest.TestCase):
         stored_id = df.loc[df["subject"] == "Integration test message", "id"].iloc[0]
         self.assertTrue(stored_id.startswith("INBOX\x1f"))
 
-        imap._modify_message_labels(
+        imap._modify_message_folders(
             message_id=stored_id,
-            label_id_remove_lst=["INBOX"],
-            label_id_add_lst=["MailSortInbox"],
+            folder_id_remove_lst=["INBOX"],
+            folder_id_add_lst=["MailSortInbox"],
         )
 
         imap.update_database(quick=False)

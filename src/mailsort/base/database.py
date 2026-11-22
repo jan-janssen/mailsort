@@ -22,7 +22,7 @@ from tqdm import tqdm
 
 Base = declarative_base()
 
-# MySQL requires a length for VARCHAR columns. Identifiers, labels and single
+# MySQL requires a length for VARCHAR columns. Identifiers, folders and single
 # email addresses fit in VARCHAR(255), while subjects and recipient lists can
 # exceed 255 characters and are stored as TEXT. The email content can be larger
 # than the 64 KB limit of TEXT, so it is stored as LONGTEXT on MySQL. Since
@@ -137,7 +137,7 @@ class DatabaseInterface(DatabaseTemplate):
         self._commit_email_from_table(df=df, user_id=user_id)
         self._commit_email_to_table(df=df, user_id=user_id)
         self._commit_email_cc_table(df=df, user_id=user_id)
-        self._commit_label_table(df=df, user_id=user_id)
+        self._commit_folder_table(df=df, user_id=user_id)
         self._commit_thread_table(df=df, user_id=user_id)
 
     def list_email_ids(self, user_id: int = 1) -> list[str]:
@@ -178,45 +178,45 @@ class DatabaseInterface(DatabaseTemplate):
             instance.email_deleted = True
         self._session.commit()
 
-    def get_labels_to_update(
+    def get_folders_to_update(
         self, message_id_lst: list[str], user_id: int = 1
     ) -> tuple[list[str], list[str], list[str]]:
         email_in_db_id = self.list_email_ids(user_id=user_id)
         new_messages_lst = [m for m in message_id_lst if m not in email_in_db_id]
         deleted_messages_lst = [m for m in email_in_db_id if m not in message_id_lst]
-        message_label_updates_lst = [m for m in message_id_lst if m in email_in_db_id]
-        return new_messages_lst, message_label_updates_lst, deleted_messages_lst
+        message_folder_updates_lst = [m for m in message_id_lst if m in email_in_db_id]
+        return new_messages_lst, message_folder_updates_lst, deleted_messages_lst
 
-    def update_labels(
+    def update_folders(
         self,
         message_id_lst: list[str],
         message_meta_lst: list[list[str]],
         user_id: int = 1,
     ) -> None:
-        for message_id, message_labels in tqdm(
+        for message_id, message_folders in tqdm(
             iterable=zip(message_id_lst, message_meta_lst, strict=False),
-            desc="Update labels",
+            desc="Update folders",
             total=len(message_id_lst),
         ):
-            message_label_stored = [
+            message_folder_stored = [
                 m
                 for (m,) in self._session.query(Folders.folder_id)
                 .filter(Folders.user_id == user_id)
                 .filter(Folders.email_id == message_id)
                 .all()
             ]
-            if message_label_stored == message_labels:
+            if message_folder_stored == message_folders:
                 continue
             else:
-                message_label_stored_set = set(message_label_stored)
-                message_labels_set = set(message_labels)
-                labels_to_add = list(
-                    message_labels_set.difference(message_label_stored_set)
+                message_folder_stored_set = set(message_folder_stored)
+                message_folders_set = set(message_folders)
+                folders_to_add = list(
+                    message_folders_set.difference(message_folder_stored_set)
                 )
-                labels_to_remove = list(
-                    message_label_stored_set.difference(message_labels_set)
+                folders_to_remove = list(
+                    message_folder_stored_set.difference(message_folders_set)
                 )
-                if len(labels_to_add) > 0:
+                if len(folders_to_add) > 0:
                     self._session.add_all(
                         [
                             Folders(
@@ -224,17 +224,17 @@ class DatabaseInterface(DatabaseTemplate):
                                 folder_id=folder_id,
                                 user_id=user_id,
                             )
-                            for folder_id in labels_to_add
+                            for folder_id in folders_to_add
                         ]
                     )
-                if len(labels_to_remove) > 0:
+                if len(folders_to_remove) > 0:
                     _ = [
                         self._session.query(Folders)
                         .filter(Folders.user_id == user_id)
                         .filter(Folders.email_id == message_id)
                         .filter(Folders.folder_id == folder_id)
                         .delete()
-                        for folder_id in labels_to_remove
+                        for folder_id in folders_to_remove
                     ]
                 self._session.commit()
 
@@ -416,14 +416,14 @@ class DatabaseInterface(DatabaseTemplate):
         )
         self._session.commit()
 
-    def _commit_label_table(self, df: pandas.DataFrame, user_id: int = 1) -> None:
-        label_lst = []
+    def _commit_folder_table(self, df: pandas.DataFrame, user_id: int = 1) -> None:
+        folder_lst = []
         for email_id, lid_lst in zip(df["id"], df["labels"], strict=False):
             for folder_id in lid_lst:
-                label_lst.append(
+                folder_lst.append(
                     Folders(email_id=email_id, folder_id=folder_id, user_id=user_id)
                 )
-        self._session.add_all(label_lst)
+        self._session.add_all(folder_lst)
         self._session.commit()
 
     def _commit_email_to_table(self, df: pandas.DataFrame, user_id: int = 1) -> None:
@@ -478,7 +478,7 @@ class DatabaseInterface(DatabaseTemplate):
             email_to_lst,
             email_cc_lst,
             email_threads_lst,
-            email_labels_lst,
+            email_folders_lst,
             email_date_lst,
         ) = ([], [], [], [], [], [], [], [], [])
         for email_id, email_subject, email_content, email_date in tqdm(
@@ -505,9 +505,9 @@ class DatabaseInterface(DatabaseTemplate):
                 .filter(EmailCc.email_id == email_id)
                 .all()
             ]
-            label_lst = [
-                labels.folder_id
-                for labels in self._session.query(Folders)
+            folder_lst = [
+                folders.folder_id
+                for folders in self._session.query(Folders)
                 .filter(Folders.user_id == user_id)
                 .filter(Folders.email_id == email_id)
                 .all()
@@ -525,7 +525,7 @@ class DatabaseInterface(DatabaseTemplate):
                 email_from_lst.append(None)
             email_cc_lst.append(email_cc)
             email_to_lst.append(email_to)
-            email_labels_lst.append(label_lst)
+            email_folders_lst.append(folder_lst)
             email_threads_lst.append(thread_lst[0])
             email_id_lst.append(email_id)
             email_subject_lst.append(email_subject)
@@ -539,30 +539,51 @@ class DatabaseInterface(DatabaseTemplate):
                 "cc": email_cc_lst,
                 "date": email_date_lst,
                 "threads": email_threads_lst,
-                "labels": email_labels_lst,
+                "labels": email_folders_lst,
                 "subject": email_subject_lst,
                 "content": email_content_lst,
             }
         )
 
 
-def _migrate_email_labels_to_email_folders(engine: Engine) -> None:
+def rename_legacy_table(
+    engine: Engine,
+    old_table: str,
+    new_table: str,
+    old_column: str,
+    new_column: str,
+) -> None:
     """
-    Databases created before the Labels table was renamed store the folders of each email in
-    "email_labels.label_id". Rename that table and column in place, so existing databases keep
-    their data - otherwise create_all() would add an empty "email_folders" table next to it.
+    Rename a table and one of its columns in place, if the database still has the old table.
+
+    Databases created before the "label" tables were renamed to "folder" tables keep their data
+    this way - otherwise create_all() would add an empty new table next to the old one. Nothing
+    happens for new or already migrated databases, or if both tables exist.
+
+    Args:
+        engine: database engine
+        old_table: name of the legacy table
+        new_table: name the table should have
+        old_column: name of the legacy column
+        new_column: name the column should have
     """
     table_lst = inspect(engine).get_table_names()
-    if "email_labels" not in table_lst or "email_folders" in table_lst:
+    if old_table not in table_lst or new_table in table_lst:
         return
     with engine.begin() as connection:
-        connection.execute(text("ALTER TABLE email_labels RENAME TO email_folders"))
+        connection.execute(text(f"ALTER TABLE {old_table} RENAME TO {new_table}"))
         connection.execute(
-            text("ALTER TABLE email_folders RENAME COLUMN label_id TO folder_id")
+            text(f"ALTER TABLE {new_table} RENAME COLUMN {old_column} TO {new_column}")
         )
 
 
 def get_email_database(engine: Engine, session: Session) -> DatabaseInterface:
-    _migrate_email_labels_to_email_folders(engine)
+    rename_legacy_table(
+        engine=engine,
+        old_table="email_labels",
+        new_table="email_folders",
+        old_column="label_id",
+        new_column="folder_id",
+    )
     Base.metadata.create_all(engine)
     return DatabaseInterface(session=session)

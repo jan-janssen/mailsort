@@ -217,7 +217,7 @@ class EvaluateAtThresholdTest(TestCase):
         self.assertEqual(spam.precision, 0.5)
         self.assertEqual(spam.recall, 1.0)
 
-    def test_multi_label_true_folders_count_as_a_hit_for_either(self):
+    def test_multi_folder_true_folders_count_as_a_hit_for_either(self):
         # A message truly filed in two folders at once is a rare edge case, but the true_folder
         # set is checked with "in", so recommending either one is treated as correct.
         holdout = _holdout(

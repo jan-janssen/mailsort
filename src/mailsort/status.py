@@ -47,7 +47,7 @@ def get_database_status(connection_str, db_user_id=1):
             include_deleted=False, user_id=db_user_id
         )
         message_count = db_email.count_emails(include_deleted=True, user_id=db_user_id)
-        trained_folder_lst = sorted(db_ml.get_labels(user_id=db_user_id))
+        trained_folder_lst = sorted(db_ml.get_folders(user_id=db_user_id))
         feature_count = len(db_ml.get_features(user_id=db_user_id))
         return DatabaseStatus(
             connection_str=connection_str,

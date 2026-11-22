@@ -113,7 +113,7 @@ end up in your shell history in plain text.
 - `--recommendation-ratio` cutoff a score must clear to count as a recommendation (`0<r<1`) - default: `0.9`. This
   is a threshold on a model score, not a guaranteed probability of being correct - see
   [Evaluation and confidence](evaluation).
-- `--folder-prefix` prefix used to recognise label columns during feature encoding - only needs to change if you
+- `--folder-prefix` prefix used to recognise folder columns during feature encoding - only needs to change if you
   customised this in the Python API - default: `labels_`.
 
 ### Exit codes

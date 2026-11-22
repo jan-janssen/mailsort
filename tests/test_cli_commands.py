@@ -476,7 +476,7 @@ class EvaluateCommandTest(TestCase):
 
 
 class FormatStatusTableTest(TestCase):
-    def test_no_trained_labels(self):
+    def test_no_trained_folders(self):
         table = _format_status_table(
             DatabaseStatus(
                 connection_str="sqlite:///email.db",
@@ -490,7 +490,7 @@ class FormatStatusTableTest(TestCase):
         )
         self.assertIn("none", table)
 
-    def test_lists_trained_labels(self):
+    def test_lists_trained_folders(self):
         table = _format_status_table(
             DatabaseStatus(
                 connection_str="sqlite:///email.db",

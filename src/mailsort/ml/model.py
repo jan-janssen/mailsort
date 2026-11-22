@@ -11,7 +11,7 @@ from mailsort.ml.calibration import (
     DEFAULT_MIN_SAMPLES_PER_CLASS_FOR_CALIBRATION,
     is_calibrated,
     positive_class_probability,
-    train_label_classifier,
+    train_folder_classifier,
 )
 
 
@@ -32,7 +32,7 @@ def train_random_forest(
         random_state (int): random state for initialization of the machine learning models
         bootstrap (boolean): bootstrap of the machine learning models
         X (pandas.DataFrame): binary encoded features stored in a pandas dataframe
-        y (pandas.Series): boolean encoded label
+        y (pandas.Series): boolean encoded folder
 
     Return:
         RandomForestClassifier: trained model
@@ -58,11 +58,11 @@ def fit_machine_learning_models(
     max_calibration_cv_folds: int = DEFAULT_MAX_CALIBRATION_CV_FOLDS,
 ) -> dict[str, RandomForestClassifier]:
     """
-    Train machine learning models, one per label/folder.
+    Train machine learning models, one per folder.
 
     Args:
         df_all_features (pandas.DataFrame): binary encoded features stored in a pandas dataframe
-        df_all_folders (pandas.DataFrame): binary encoded labels stored in a pandas dataframe
+        df_all_folders (pandas.DataFrame): binary encoded folders stored in a pandas dataframe
         n_estimators (int): number of estimators of the machine learning models
         max_features (int): maximum number of features of the machine learning models
         random_state (int): random state for initialization of the machine learning models
@@ -75,14 +75,14 @@ def fit_machine_learning_models(
         max_calibration_cv_folds (int): see mailsort.ml.calibration.calibration_cv_folds()
 
     Returns:
-        dict: dictionary with machine learning models with labels as keys - each value is either
+        dict: dictionary with machine learning models with folders as keys - each value is either
             a raw RandomForestClassifier or, if calibrated, a CalibratedClassifierCV wrapping one;
             see mailsort.ml.calibration.is_calibrated()
     """
     df_training = df_all_features.drop(["email_id"], axis=1)
     if max_workers == 1:
         return {
-            to_learn.split("labels_")[-1]: train_label_classifier(
+            to_learn.split("labels_")[-1]: train_folder_classifier(
                 n_estimators=n_estimators,
                 random_state=random_state,
                 bootstrap=bootstrap,
@@ -102,7 +102,7 @@ def fit_machine_learning_models(
         with ProcessPoolExecutor(max_workers=max_workers) as exe:
             futures_dict = {
                 to_learn.split("labels_")[-1]: exe.submit(
-                    train_label_classifier,
+                    train_folder_classifier,
                     n_estimators=n_estimators,
                     random_state=random_state,
                     bootstrap=bootstrap,
@@ -123,20 +123,20 @@ def fit_machine_learning_models(
             }
 
 
-def _predict_top_label_per_message(
+def _predict_top_folder_per_message(
     df_features: pandas.DataFrame,
     model_dict: dict[str, RandomForestClassifier],
 ) -> tuple[list[str], list[str], np.ndarray, list[bool]]:
     """
-    Run every per-label model in model_dict against every message in df_features and, for each
-    message, determine which label's model scores it highest.
+    Run every per-folder model in model_dict against every message in df_features and, for each
+    message, determine which folder's model scores it highest.
 
     This is the shared core behind get_predictions_from_machine_learning_models (used by the
     automatic sorting API) and score_messages_with_machine_learning_models (used by the dry-run
-    recommendation API), so both agree on the exact same top label and score for a given message.
+    recommendation API), so both agree on the exact same top folder and score for a given message.
 
-    Scores are the positive-class probability from each label's classifier (see
-    mailsort.ml.calibration.positive_class_probability) - a calibrated probability if that label's
+    Scores are the positive-class probability from each folder's classifier (see
+    mailsort.ml.calibration.positive_class_probability) - a calibrated probability if that folder's
     classifier was calibrated, an uncalibrated classifier score otherwise. Earlier versions of
     this function used the classifier's hard predict() output instead, which for a binary 0.0/1.0
     target is always exactly 0.0 or 1.0 - not a graded score at all, and not what
@@ -144,31 +144,31 @@ def _predict_top_label_per_message(
 
     Args:
         df_features (pandas.DataFrame): binary encoded features stored in a pandas dataframe
-        model_dict (dict): dictionary with machine learning models with labels as keys
+        model_dict (dict): dictionary with machine learning models with folders as keys
 
     Returns:
         list: email id per message, in the same order as df_features
-        list: highest scoring label per message, in the same order
-        numpy.ndarray: score of that highest scoring label per message, in the same order
-        list[bool]: whether the highest scoring label's classifier was calibrated, in the same
+        list: highest scoring folder per message, in the same order
+        numpy.ndarray: score of that highest scoring folder per message, in the same order
+        list[bool]: whether the highest scoring folder's classifier was calibrated, in the same
             order - see mailsort.ml.calibration.is_calibrated()
     """
     df_predict = df_features.drop(["email_id"], axis=1)
-    label_lst = list(model_dict.keys())
+    folder_lst = list(model_dict.keys())
     proba_array = np.array(
         [
-            positive_class_probability(model_dict[label], df_predict)
-            for label in label_lst
+            positive_class_probability(model_dict[folder], df_predict)
+            for folder in folder_lst
         ]
     ).T
-    calibrated_lst = [is_calibrated(model_dict[label]) for label in label_lst]
+    calibrated_lst = [is_calibrated(model_dict[folder]) for folder in folder_lst]
     argmax_indices = np.argmax(proba_array, axis=1)
     max_values = proba_array[np.arange(len(proba_array)), argmax_indices]
-    best_label_lst = [label_lst[idx] for idx in argmax_indices]
+    best_folder_lst = [folder_lst[idx] for idx in argmax_indices]
     best_calibrated_lst = [calibrated_lst[idx] for idx in argmax_indices]
     return (
         df_features.email_id.tolist(),
-        best_label_lst,
+        best_folder_lst,
         max_values,
         best_calibrated_lst,
     )
@@ -184,20 +184,20 @@ def get_predictions_from_machine_learning_models(
 
     Args:
         df_features (pandas.DataFrame): binary encoded features stored in a pandas dataframe
-        model_dict (dict): dictionary with machine learning models with labels as keys
+        model_dict (dict): dictionary with machine learning models with folders as keys
         recommendation_ratio (float): recommendation cutoff ratio
 
     Returns:
-        dict: email id as keys and the corresponding newly assigned label as value
+        dict: email id as keys and the corresponding newly assigned folder as value
     """
-    email_id_lst, best_label_lst, max_values, _ = _predict_top_label_per_message(
+    email_id_lst, best_folder_lst, max_values, _ = _predict_top_folder_per_message(
         df_features=df_features, model_dict=model_dict
     )
-    new_label_lst = [
-        label if max_val > recommendation_ratio else None
-        for label, max_val in zip(best_label_lst, max_values, strict=False)
+    new_folder_lst = [
+        folder if max_val > recommendation_ratio else None
+        for folder, max_val in zip(best_folder_lst, max_values, strict=False)
     ]
-    return dict(zip(email_id_lst, new_label_lst, strict=False))
+    return dict(zip(email_id_lst, new_folder_lst, strict=False))
 
 
 def score_messages_with_machine_learning_models(
@@ -206,15 +206,15 @@ def score_messages_with_machine_learning_models(
     recommendation_ratio: float = 0.9,
 ) -> list[dict[str, Any]]:
     """
-    Score every message in df_features against every per-label model in model_dict, without
+    Score every message in df_features against every per-folder model in model_dict, without
     applying recommendation_ratio as a filter - unlike get_predictions_from_machine_learning_models,
-    every message gets an entry in the result, whether or not its top label clears the threshold,
+    every message gets an entry in the result, whether or not its top folder clears the threshold,
     so a caller can inspect *why* a message was or was not recommended (see
     mailsort.base.mail.AbstractMailBox.get_folder_recommendations, the dry-run/preview API this
     was added for).
 
-    This shares its underlying per-message, per-label scores with
-    get_predictions_from_machine_learning_models (see _predict_top_label_per_message), so
+    This shares its underlying per-message, per-folder scores with
+    get_predictions_from_machine_learning_models (see _predict_top_folder_per_message), so
     "threshold_reached" here always agrees with whether that function would recommend moving the
     same message for real, given the same recommendation_ratio.
 
@@ -225,15 +225,15 @@ def score_messages_with_machine_learning_models(
 
     Args:
         df_features (pandas.DataFrame): binary encoded features stored in a pandas dataframe
-        model_dict (dict): dictionary with machine learning models with labels as keys
+        model_dict (dict): dictionary with machine learning models with folders as keys
         recommendation_ratio (float): recommendation cutoff ratio
 
     Returns:
         list: one dict per message in df_features, each with:
             - "email_id" (str): the message's email id
-            - "recommended_label" (str/None): the label whose model scores this message highest,
+            - "recommended_folder" (str/None): the folder whose model scores this message highest,
               or None if model_dict is empty (e.g. no machine learning model trained yet)
-            - "score" (float): that label's score for this message
+            - "score" (float): that folder's score for this message
             - "threshold_reached" (bool): whether "score" clears recommendation_ratio
             - "calibrated" (bool): whether "score" is a calibrated probability rather than a raw,
               uncalibrated classifier score - always False when model_dict is empty
@@ -242,25 +242,25 @@ def score_messages_with_machine_learning_models(
         return [
             {
                 "email_id": email_id,
-                "recommended_label": None,
+                "recommended_folder": None,
                 "score": 0.0,
                 "threshold_reached": False,
                 "calibrated": False,
             }
             for email_id in df_features.email_id.tolist()
         ]
-    email_id_lst, best_label_lst, max_values, calibrated_lst = (
-        _predict_top_label_per_message(df_features=df_features, model_dict=model_dict)
+    email_id_lst, best_folder_lst, max_values, calibrated_lst = (
+        _predict_top_folder_per_message(df_features=df_features, model_dict=model_dict)
     )
     return [
         {
             "email_id": email_id,
-            "recommended_label": label,
+            "recommended_folder": folder,
             "score": float(max_val),
             "threshold_reached": bool(max_val > recommendation_ratio),
             "calibrated": calibrated,
         }
-        for email_id, label, max_val, calibrated in zip(
-            email_id_lst, best_label_lst, max_values, calibrated_lst, strict=False
+        for email_id, folder, max_val, calibrated in zip(
+            email_id_lst, best_folder_lst, max_values, calibrated_lst, strict=False
         )
     ]

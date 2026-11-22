@@ -80,13 +80,13 @@ class MailSorter:
         Update the local database from the mail server - the "fetch/store" steps of the loop.
 
         Args:
-            quick: only add new messages, skip re-checking the labels of already-known ones -
+            quick: only add new messages, skip re-checking the folders of already-known ones -
                 default: False
             folder_lst: restrict the sync to these folders - default: every folder
             email_format: backend-specific download format hint
 
         Returns:
-            SyncResult: how many messages were newly stored, relabeled and marked deleted
+            SyncResult: how many messages were newly stored, reassigned and marked deleted
         """
         return self._mailbox.update_database(
             quick=quick, folder_lst=folder_lst, email_format=email_format
@@ -164,7 +164,7 @@ class MailSorter:
                 move a message (0<r<1). A threshold on a model score, not a guaranteed
                 probability of being correct - see mailsort.ml.evaluation to check what a given
                 threshold achieves on your own data.
-            folder_prefix: prefix used to recognise label columns during feature encoding
+            folder_prefix: prefix used to recognise folder columns during feature encoding
 
         Returns:
             list[Prediction]: one entry per message currently in `folder`
@@ -194,7 +194,7 @@ class MailSorter:
             recommendation_ratio: cutoff a score must clear to actually move a message (0<r<1) -
                 see predict() and mailsort.ml.evaluation for what this cutoff does and does not
                 guarantee
-            folder_prefix: prefix used to recognise label columns during feature encoding
+            folder_prefix: prefix used to recognise folder columns during feature encoding
 
         Returns:
             SortResult: which messages were actually moved, and to where

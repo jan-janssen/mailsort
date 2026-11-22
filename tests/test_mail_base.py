@@ -10,15 +10,15 @@ from mailsort.results import Prediction, ScoreType, SortResult, SyncResult, Trai
 class _StubMailBox(AbstractMailBox):
     """Minimal concrete AbstractMailBox used to test the shared loop in isolation."""
 
-    def __init__(self, label_dict_fixture=None, **kwargs):
-        self.label_dict_fixture = label_dict_fixture or {
+    def __init__(self, folder_dict_fixture=None, **kwargs):
+        self.folder_dict_fixture = folder_dict_fixture or {
             "Inbox": "Inbox",
             "Spam": "Spam",
         }
         self.search_result = []
         self.message_detail_dict = {}
         self.modify_calls = []
-        self.labels_for_email_dict = {}
+        self.folders_for_email_dict = {}
         super().__init__(mail_service=MagicMock(), **kwargs)
 
     def _search_email_on_server(
@@ -29,16 +29,16 @@ class _StubMailBox(AbstractMailBox):
     def _get_message_detail(self, message_id, email_format=None, metadata_headers=None):
         return self.message_detail_dict.get(message_id)
 
-    def _get_label_translate_dict(self):
-        return self.label_dict_fixture
+    def _get_folder_translate_dict(self):
+        return self.folder_dict_fixture
 
-    def _modify_message_labels(
-        self, message_id, label_id_remove_lst=None, label_id_add_lst=None
+    def _modify_message_folders(
+        self, message_id, folder_id_remove_lst=None, folder_id_add_lst=None
     ):
-        self.modify_calls.append((message_id, label_id_remove_lst, label_id_add_lst))
+        self.modify_calls.append((message_id, folder_id_remove_lst, folder_id_add_lst))
 
-    def _get_labels_for_email(self, message_id):
-        return self.labels_for_email_dict.get(message_id, [])
+    def _get_folders_for_email(self, message_id):
+        return self.folders_for_email_dict.get(message_id, [])
 
     def _parse_message(self, message):
         return message
@@ -68,9 +68,9 @@ def _make_prediction(
 
 
 class AbstractMailBoxTest(TestCase):
-    def test_labels_property(self):
+    def test_folders_property(self):
         mailbox = _StubMailBox()
-        self.assertEqual(sorted(mailbox.labels), ["Inbox", "Spam"])
+        self.assertEqual(sorted(mailbox.folders), ["Inbox", "Spam"])
 
     def test_close_default_implementation_is_a_no_op(self):
         mailbox = _StubMailBox()
@@ -109,7 +109,7 @@ class AbstractMailBoxTest(TestCase):
 
         self.assertEqual(df["id"].tolist(), ["id1"])
 
-    def test_move_emails_skips_matching_or_none_labels(self):
+    def test_move_emails_skips_matching_or_none_folders(self):
         mailbox = _StubMailBox()
         prediction_lst = [
             _make_prediction("id1", recommended_folder=None, accepted=True),
@@ -127,7 +127,7 @@ class AbstractMailBoxTest(TestCase):
 
     def test_update_database_marks_missing_as_deleted(self):
         db_email = MagicMock()
-        db_email.get_labels_to_update.return_value = (["new"], [], ["deleted"])
+        db_email.get_folders_to_update.return_value = (["new"], [], ["deleted"])
         mailbox = _StubMailBox(database_email=db_email)
         mailbox.search_result = ["new"]
         mailbox.message_detail_dict = {
@@ -152,9 +152,13 @@ class AbstractMailBoxTest(TestCase):
         db_email.store_dataframe.assert_called_once()
         self.assertEqual(result, SyncResult(1, 0, 1))
 
-    def test_update_database_quick_skips_relabel_and_delete_counts(self):
+    def test_update_database_quick_skips_reassign_and_delete_counts(self):
         db_email = MagicMock()
-        db_email.get_labels_to_update.return_value = (["new"], ["updated"], ["deleted"])
+        db_email.get_folders_to_update.return_value = (
+            ["new"],
+            ["updated"],
+            ["deleted"],
+        )
         mailbox = _StubMailBox(database_email=db_email)
         mailbox.search_result = ["new"]
         mailbox.message_detail_dict = {
@@ -174,7 +178,7 @@ class AbstractMailBoxTest(TestCase):
         result = mailbox.update_database(quick=True)
 
         db_email.mark_emails_as_deleted.assert_not_called()
-        db_email.update_labels.assert_not_called()
+        db_email.update_folders.assert_not_called()
         self.assertEqual(result, SyncResult(1, 0, 0))
 
     def test_update_database_without_email_database_is_a_no_op(self):
@@ -203,8 +207,8 @@ class AbstractMailBoxTest(TestCase):
         db_ml = MagicMock()
         mailbox = _StubMailBox(database_email=db_email, database_ml=db_ml)
         features = pd.DataFrame([{"email_id": "x", "f1": 1}])
-        labels = pd.DataFrame([{"labels_Inbox": 1}])
-        encode_mock.return_value = (features, labels)
+        folders = pd.DataFrame([{"labels_Inbox": 1}])
+        encode_mock.return_value = (features, folders)
         fit_mock.return_value = {"Inbox": MagicMock()}
 
         result = mailbox.fit_machine_learning_model_to_database(
@@ -241,7 +245,7 @@ class AbstractMailBoxTest(TestCase):
         score_mock.return_value = [
             {
                 "email_id": "id1",
-                "recommended_label": "Sorted",
+                "recommended_folder": "Sorted",
                 "score": 0.95,
                 "threshold_reached": True,
                 "calibrated": True,
@@ -282,7 +286,7 @@ class AbstractMailBoxTest(TestCase):
         score_mock.return_value = [
             {
                 "email_id": "id1",
-                "recommended_label": "Sorted",
+                "recommended_folder": "Sorted",
                 "score": 0.4,
                 "threshold_reached": False,
                 "calibrated": False,
@@ -296,7 +300,7 @@ class AbstractMailBoxTest(TestCase):
 
     def test_filter_messages_from_server_without_trained_models_does_not_crash(self):
         # Regression test: get_folder_recommendations() has always special-cased an untrained
-        # database (no per-label models yet) to abstain without running the ML pipeline.
+        # database (no per-folder models yet) to abstain without running the ML pipeline.
         # filter_messages_from_server() now shares that same code path via
         # get_folder_recommendations(), so it inherits the same safety - previously it called the
         # ML pipeline unconditionally and crashed on an untrained database instead of abstaining.
@@ -460,7 +464,7 @@ class AbstractMailBoxTest(TestCase):
         score_mock.return_value = [
             {
                 "email_id": "id1",
-                "recommended_label": "Sorted",
+                "recommended_folder": "Sorted",
                 "score": 0.95,
                 "threshold_reached": True,
                 "calibrated": True,
@@ -472,7 +476,7 @@ class AbstractMailBoxTest(TestCase):
         self.assertEqual(
             list(score_mock.call_args.kwargs["model_dict"].keys()), ["Sorted"]
         )
-        self.assertEqual(encode_mock.call_args.kwargs["label_lst"], ["Sorted"])
+        self.assertEqual(encode_mock.call_args.kwargs["folder_lst"], ["Sorted"])
 
     def test_get_folder_recommendations_abstains_when_only_source_folder_model_exists(
         self,
@@ -526,7 +530,7 @@ class AbstractMailBoxTest(TestCase):
         score_mock.return_value = [
             {
                 "email_id": "id1",
-                "recommended_label": "Sorted",
+                "recommended_folder": "Sorted",
                 "score": 0.95,
                 "threshold_reached": True,
                 "calibrated": True,
@@ -583,7 +587,7 @@ class AbstractMailBoxTest(TestCase):
         score_mock.return_value = [
             {
                 "email_id": "id1",
-                "recommended_label": "Sorted",
+                "recommended_folder": "Sorted",
                 "score": 0.5,
                 "threshold_reached": False,
                 "calibrated": False,
@@ -628,7 +632,7 @@ class AbstractMailBoxTest(TestCase):
         score_mock.return_value = [
             {
                 "email_id": "id1",
-                "recommended_label": "Sorted",
+                "recommended_folder": "Sorted",
                 "score": 0.9,
                 # score == recommendation_ratio - a real score_messages_with_machine_learning_models()
                 # call would compute this as False too, since the cutoff is a strict ">"
@@ -689,14 +693,14 @@ class AbstractMailBoxTest(TestCase):
         score_mock.return_value = [
             {
                 "email_id": "id1",
-                "recommended_label": "Sorted",
+                "recommended_folder": "Sorted",
                 "score": 0.95,
                 "threshold_reached": True,
                 "calibrated": True,
             },
             {
                 "email_id": "id2",
-                "recommended_label": "Receipts",
+                "recommended_folder": "Receipts",
                 "score": 0.3,
                 "threshold_reached": False,
                 "calibrated": False,

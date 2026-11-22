@@ -56,8 +56,8 @@ class MessageTest(TestCase):
     def test_thread_id_falls_back_to_message_id(self):
         self.assertEqual(self.message.get_thread_id(), "<abc123@server.net>")
 
-    def test_label_ids(self):
-        self.assertEqual(self.message.get_label_ids(), ["INBOX"])
+    def test_folder_ids(self):
+        self.assertEqual(self.message.get_folder_ids(), ["INBOX"])
 
     def test_get_date(self):
         self.assertEqual(
