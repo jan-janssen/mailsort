@@ -10,7 +10,7 @@ from sqlalchemy.orm import sessionmaker
 from sklearn.ensemble import RandomForestClassifier
 
 from mailsort.ml.encoding import (
-    remove_excluded_labels,
+    remove_folder_from_labels,
     encode_df_for_machine_learning,
     one_hot_encoding,
     _build_red_lst,
@@ -559,7 +559,7 @@ class TestMlModel(unittest.TestCase):
         self.assertEqual(set(predictions.values()), {"Label_7891913576640435048"})
 
 
-class RemoveExcludedLabelsTest(unittest.TestCase):
+class RemoveFolderFromLabelsTest(unittest.TestCase):
     def _df(self):
         return pd.DataFrame(
             {
@@ -573,15 +573,12 @@ class RemoveExcludedLabelsTest(unittest.TestCase):
             }
         )
 
-    def test_no_exclusion_returns_input_unchanged(self):
+    def test_no_folder_returns_input_unchanged(self):
         df = self._df()
-        self.assertIs(remove_excluded_labels(df, None), df)
-        self.assertIs(remove_excluded_labels(df, []), df)
+        self.assertIs(remove_folder_from_labels(df, None), df)
 
-    def test_removes_label_and_drops_messages_only_in_excluded_folder(self):
-        df = self._df()
-
-        result = remove_excluded_labels(df, ["MailSortInbox"])
+    def test_removes_folder_and_drops_messages_only_in_it(self):
+        result = remove_folder_from_labels(self._df(), "MailSortInbox")
 
         self.assertEqual(result["id"].tolist(), ["b", "c", "d"])
         self.assertEqual(result["labels"].tolist(), [["Receipts"], ["Receipts"], []])
@@ -590,7 +587,7 @@ class RemoveExcludedLabelsTest(unittest.TestCase):
     def test_does_not_modify_the_input_dataframe(self):
         df = self._df()
 
-        remove_excluded_labels(df, ["MailSortInbox"])
+        remove_folder_from_labels(df, "MailSortInbox")
 
         self.assertEqual(df["labels"].tolist()[0], ["MailSortInbox"])
         self.assertEqual(len(df), 4)
@@ -600,12 +597,12 @@ class RemoveExcludedLabelsTest(unittest.TestCase):
             {"id": ["a", "b"], "labels": [None, np.array(["X", "Inbox"])]}
         )
 
-        result = remove_excluded_labels(df, ["Inbox"])
+        result = remove_folder_from_labels(df, "Inbox")
 
         self.assertEqual(result["id"].tolist(), ["a", "b"])
         self.assertEqual(result["labels"].tolist(), [[], ["X"]])
 
-    def test_encoded_labels_no_longer_contain_excluded_folder(self):
+    def test_encoded_labels_no_longer_contain_the_folder(self):
         df = pd.DataFrame(
             {
                 "id": ["a", "b", "c"],
@@ -618,7 +615,7 @@ class RemoveExcludedLabelsTest(unittest.TestCase):
         )
 
         _, labels = encode_df_for_machine_learning(
-            df=remove_excluded_labels(df, ["Inbox"]),
+            df=remove_folder_from_labels(df, "Inbox"),
             feature_lst=[],
             label_lst=[],
             return_labels=True,

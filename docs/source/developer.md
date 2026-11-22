@@ -22,13 +22,13 @@ with MailSorter(
     )
 ) as sorter:
     sync_result = sorter.sync()
-    train_result = sorter.train()
+    train_result = sorter.train("MailSortInbox")
     predictions = sorter.predict("MailSortInbox")
     sort_result = sorter.sort("MailSortInbox")
 ```
 - `sync(quick=False, label_lst=None, email_format=None)` - update the local database from the mail server; returns
   a `SyncResult` with `new_message_count`, `updated_message_count` and `deleted_message_count`.
-- `train(n_estimators=100, max_features=400, random_state=42, bootstrap=True, include_deleted=False, max_workers=None, calibrate=True, min_samples_per_class_for_calibration=20, max_calibration_cv_folds=5)`
+- `train(folder, n_estimators=100, max_features=400, random_state=42, bootstrap=True, include_deleted=False, max_workers=None, calibrate=True, min_samples_per_class_for_calibration=20, max_calibration_cv_folds=5)`
   - (re-)train one machine learning model per folder on the local database; returns a `TrainResult` with
   `trained_label_lst` and `model_count`. Each folder's classifier is calibrated when (and only when) it has enough
   training data to do so safely - see [Evaluation and confidence](evaluation) and `mailsort.ml.calibration` below;
@@ -122,6 +122,7 @@ In this case the emails are not stored in the local database.
 Train one machine learning model per folder on the emails currently stored in the local database:
 ```
 imap.fit_machine_learning_model_to_database(
+    folder="MailSortInbox",
     n_estimators=100,
     max_features=400,
     random_state=42,
@@ -140,6 +141,7 @@ from mailsort.api import train_machine_learning_models
 
 train_machine_learning_models(
     connection_str="sqlite:///email.db",
+    folder="MailSortInbox",
     n_estimators=100,
     max_features=400,
     random_state=42,
@@ -254,7 +256,9 @@ database and scores them against the rest, without touching the models `mailsort
 ```python
 from mailsort.api import evaluate_models
 
-report = evaluate_models(connection_str="sqlite:///email.db", recommendation_ratio=0.9)
+report = evaluate_models(
+    connection_str="sqlite:///email.db", folder="MailSortInbox", recommendation_ratio=0.9
+)
 print(report.coverage, report.overall_precision)
 for folder_metrics in report.folder_metrics:
     print(
@@ -283,7 +287,7 @@ lower-level `mailsort.evaluation`/`mailsort.ml.evaluation` functions directly:
 ```python
 from mailsort.evaluation import evaluate_at_threshold, score_holdout
 
-holdout = score_holdout(connection_str="sqlite:///email.db")  # trains and scores once
+holdout = score_holdout(connection_str="sqlite:///email.db", folder="MailSortInbox")  # trains and scores once
 for ratio in (0.7, 0.8, 0.9, 0.95):
     report = evaluate_at_threshold(holdout, recommendation_ratio=ratio)
     print(ratio, report.coverage, report.overall_precision)

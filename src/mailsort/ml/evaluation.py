@@ -60,7 +60,7 @@ from sklearn.model_selection import GroupShuffleSplit
 from mailsort.ml.calibration import is_calibrated
 from mailsort.ml.encoding import (
     encode_df_for_machine_learning,
-    remove_excluded_labels,
+    remove_folder_from_labels,
 )
 from mailsort.ml.model import (
     fit_machine_learning_models,
@@ -164,7 +164,7 @@ def score_holdout_split(
     max_calibration_cv_folds: int = 5,
     max_workers: int | None = None,
     label_prefix: str = "labels_",
-    exclude_label_lst: list[str] | None = None,
+    folder: str | None = None,
 ) -> HoldoutScores:
     """
     Split `df` into a thread-grouped train/test set (see thread_grouped_train_test_split), train
@@ -186,12 +186,13 @@ def score_holdout_split(
         max_calibration_cv_folds: see mailsort.ml.calibration.calibration_cv_folds()
         max_workers: maximum number of worker processes to train models in parallel
         label_prefix: prefix used to recognise label columns during feature encoding
-        exclude_label_lst: folders to ignore, as in training - see remove_excluded_labels()
+        folder: the folder that gets sorted, ignored as in training - see
+            remove_folder_from_labels()
 
     Returns:
         HoldoutScores
     """
-    df = remove_excluded_labels(df=df, exclude_label_lst=exclude_label_lst)
+    df = remove_folder_from_labels(df=df, folder=folder)
     df_train, df_test = thread_grouped_train_test_split(
         df, test_size=test_size, random_state=random_state
     )
@@ -520,7 +521,7 @@ def evaluate_machine_learning_models(
     max_calibration_cv_folds: int = 5,
     max_workers: int | None = None,
     label_prefix: str = "labels_",
-    exclude_label_lst: list[str] | None = None,
+    folder: str | None = None,
 ) -> EvaluationReport:
     """
     One-shot convenience wrapper: score_holdout_split() followed by evaluate_at_threshold() at a
@@ -548,6 +549,6 @@ def evaluate_machine_learning_models(
         max_calibration_cv_folds=max_calibration_cv_folds,
         max_workers=max_workers,
         label_prefix=label_prefix,
-        exclude_label_lst=exclude_label_lst,
+        folder=folder,
     )
     return evaluate_at_threshold(holdout, recommendation_ratio=recommendation_ratio)

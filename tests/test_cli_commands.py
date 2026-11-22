@@ -108,66 +108,69 @@ class TrainCommandTest(TestCase):
         train_mock.return_value = 3
 
         exit_code = command_line_parser(
-            ["train", "-d", "sqlite:///:memory:", "-i", "2"]
+            ["train", "Inbox", "-d", "sqlite:///:memory:", "-i", "2"]
         )
 
         self.assertEqual(exit_code, _EXIT_OK)
         train_mock.assert_called_once_with(
+            folder="Inbox",
             connection_str="sqlite:///:memory:",
             db_user_id=2,
             include_deleted=False,
             calibrate=True,
-            exclude_label_lst=None,
         )
 
     @patch("mailsort.__main__.train_machine_learning_models")
     def test_train_include_deleted_flag_is_forwarded(self, train_mock):
         train_mock.return_value = 0
 
-        command_line_parser(["train", "--include-deleted"])
+        command_line_parser(["train", "Inbox", "--include-deleted"])
 
         train_mock.assert_called_once_with(
+            folder="Inbox",
             connection_str="sqlite:///email.db",
             db_user_id=1,
             include_deleted=True,
             calibrate=True,
-            exclude_label_lst=None,
         )
 
     @patch("mailsort.__main__.train_machine_learning_models")
     def test_train_no_calibration_flag_is_forwarded(self, train_mock):
         train_mock.return_value = 0
 
-        command_line_parser(["train", "--no-calibration"])
+        command_line_parser(["train", "Inbox", "--no-calibration"])
 
         train_mock.assert_called_once_with(
+            folder="Inbox",
             connection_str="sqlite:///email.db",
             db_user_id=1,
             include_deleted=False,
             calibrate=False,
-            exclude_label_lst=None,
         )
 
     @patch("mailsort.__main__.train_machine_learning_models")
-    def test_train_ignore_folder_flag_is_forwarded(self, train_mock):
-        train_mock.return_value = 0
+    def test_train_requires_the_folder_to_ignore(self, train_mock):
+        with patch("sys.stderr"), self.assertRaises(SystemExit) as raised:
+            command_line_parser(["train"])
 
-        command_line_parser(
-            ["train", "--ignore-folder", "MailSortInbox", "--ignore-folder", "Spam"]
-        )
+        self.assertNotEqual(raised.exception.code, 0)
+        train_mock.assert_not_called()
 
-        train_mock.assert_called_once_with(
-            connection_str="sqlite:///email.db",
-            db_user_id=1,
-            include_deleted=False,
-            calibrate=True,
-            exclude_label_lst=["MailSortInbox", "Spam"],
-        )
+    def test_train_has_no_ignore_folder_option(self):
+        with patch("sys.stderr"), self.assertRaises(SystemExit):
+            command_line_parser(["train", "Inbox", "--ignore-folder", "Spam"])
+
+    @patch("mailsort.__main__.score_holdout")
+    def test_evaluate_requires_the_folder_to_ignore(self, score_holdout_mock):
+        with patch("sys.stderr"), self.assertRaises(SystemExit):
+            command_line_parser(["evaluate"])
+
+        score_holdout_mock.assert_not_called()
 
     @patch("mailsort.__main__.Imap")
     def test_train_does_not_require_host_or_credentials(self, imap_cls):
         with patch("mailsort.__main__.train_machine_learning_models", return_value=0):
-            exit_code = command_line_parser(["train"])
+            exit_code = command_line_parser(["train", "Inbox"])
 
         self.assertEqual(exit_code, _EXIT_OK)
         imap_cls.assert_not_called()
@@ -176,7 +179,7 @@ class TrainCommandTest(TestCase):
     def test_train_runtime_error_returns_runtime_error_code(self, train_mock):
         train_mock.side_effect = RuntimeError("boom")
 
-        exit_code = command_line_parser(["train"])
+        exit_code = command_line_parser(["train", "Inbox"])
 
         self.assertEqual(exit_code, _EXIT_RUNTIME_ERROR)
 
@@ -384,15 +387,17 @@ class EvaluateCommandTest(TestCase):
         score_holdout_mock.return_value = self._holdout()
 
         with patch("builtins.print") as print_mock:
-            exit_code = command_line_parser(["evaluate", "-d", "sqlite:///email.db"])
+            exit_code = command_line_parser(
+                ["evaluate", "Inbox", "-d", "sqlite:///email.db"]
+            )
 
         self.assertEqual(exit_code, _EXIT_OK)
         score_holdout_mock.assert_called_once_with(
+            folder="Inbox",
             connection_str="sqlite:///email.db",
             db_user_id=1,
             test_size=0.25,
             calibrate=True,
-            exclude_label_lst=None,
         )
         printed = "\n".join(str(call.args[0]) for call in print_mock.call_args_list)
         self.assertIn("recommendation-ratio=0.90", printed)
@@ -408,6 +413,7 @@ class EvaluateCommandTest(TestCase):
         command_line_parser(
             [
                 "evaluate",
+                "Inbox",
                 "-d",
                 "sqlite:///other.db",
                 "-i",
@@ -419,25 +425,11 @@ class EvaluateCommandTest(TestCase):
         )
 
         score_holdout_mock.assert_called_once_with(
+            folder="Inbox",
             connection_str="sqlite:///other.db",
             db_user_id=2,
             test_size=0.4,
             calibrate=False,
-            exclude_label_lst=None,
-        )
-
-    @patch("mailsort.__main__.score_holdout")
-    def test_evaluate_ignore_folder_flag_is_forwarded(self, score_holdout_mock):
-        score_holdout_mock.return_value = self._holdout()
-
-        command_line_parser(["evaluate", "--ignore-folder", "MailSortInbox"])
-
-        score_holdout_mock.assert_called_once_with(
-            connection_str="sqlite:///email.db",
-            db_user_id=1,
-            test_size=0.25,
-            calibrate=True,
-            exclude_label_lst=["MailSortInbox"],
         )
 
     @patch("mailsort.__main__.score_holdout")
@@ -445,7 +437,7 @@ class EvaluateCommandTest(TestCase):
         score_holdout_mock.return_value = self._holdout()
 
         with patch("builtins.print") as print_mock:
-            exit_code = command_line_parser(["evaluate", "--sweep"])
+            exit_code = command_line_parser(["evaluate", "Inbox", "--sweep"])
 
         self.assertEqual(exit_code, _EXIT_OK)
         printed = "\n".join(str(call.args[0]) for call in print_mock.call_args_list)
@@ -466,7 +458,7 @@ class EvaluateCommandTest(TestCase):
         )
 
         with patch("builtins.print") as print_mock:
-            exit_code = command_line_parser(["evaluate"])
+            exit_code = command_line_parser(["evaluate", "Inbox"])
 
         self.assertEqual(exit_code, _EXIT_OK)
         printed = "\n".join(str(call.args[0]) for call in print_mock.call_args_list)
@@ -478,7 +470,7 @@ class EvaluateCommandTest(TestCase):
     ):
         score_holdout_mock.side_effect = RuntimeError("no such table")
 
-        exit_code = command_line_parser(["evaluate"])
+        exit_code = command_line_parser(["evaluate", "Inbox"])
 
         self.assertEqual(exit_code, _EXIT_RUNTIME_ERROR)
 

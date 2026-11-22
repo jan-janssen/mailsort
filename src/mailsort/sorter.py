@@ -31,7 +31,7 @@ class MailSorter:
         >>> with MailSorter(Imap(host="imap.example.com", port=993, username="user@example.com",
         ...                      password="...", connection_str="sqlite:///email.db")) as sorter:
         ...     sorter.sync()
-        ...     sorter.train()
+        ...     sorter.train("MailSortInbox")
         ...     predictions = sorter.predict("MailSortInbox")
         ...     sorter.sort("MailSortInbox")
 
@@ -94,6 +94,7 @@ class MailSorter:
 
     def train(
         self,
+        folder: str,
         n_estimators: int = 100,
         max_features: int = 400,
         random_state: int = 42,
@@ -103,13 +104,15 @@ class MailSorter:
         calibrate: bool = True,
         min_samples_per_class_for_calibration: int = DEFAULT_MIN_SAMPLES_PER_CLASS_FOR_CALIBRATION,
         max_calibration_cv_folds: int = DEFAULT_MAX_CALIBRATION_CV_FOLDS,
-        exclude_folders: list[str] | None = None,
     ) -> TrainResult:
         """
         (Re-)train one machine learning model per folder on the messages in the local database -
         the "train" step of the loop.
 
         Args:
+            folder: the folder you sort (e.g. "MailSortInbox"). It is always ignored during
+                training - no model is trained for it and messages found only in it are not used
+                as training data - because no message is meant to stay in it
             n_estimators: number of estimators per model
             max_features: maximum number of features per model
             random_state: random state for initialization
@@ -123,14 +126,12 @@ class MailSorter:
             min_samples_per_class_for_calibration: see
                 mailsort.ml.calibration.should_calibrate()
             max_calibration_cv_folds: see mailsort.ml.calibration.calibration_cv_folds()
-            exclude_folders: folders to ignore during training, typically the folder you sort
-                (e.g. ["MailSortInbox"]) - no model is trained for them and messages found only
-                in them are not used as training data
 
         Returns:
             TrainResult: the folders a model was trained for
         """
         return self._mailbox.fit_machine_learning_model_to_database(
+            folder=folder,
             n_estimators=n_estimators,
             max_features=max_features,
             random_state=random_state,
@@ -140,7 +141,6 @@ class MailSorter:
             calibrate=calibrate,
             min_samples_per_class_for_calibration=min_samples_per_class_for_calibration,
             max_calibration_cv_folds=max_calibration_cv_folds,
-            exclude_label_lst=exclude_folders,
         )
 
     def predict(

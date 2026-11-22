@@ -21,8 +21,9 @@ mailsort sync --host imap.example.com --username user@example.com --password "..
 Then train the machine learning model on them - this only reads the local database, so it does not need `--host`,
 `--username` or `--password`:
 ```
-mailsort train -d sqlite:///email.db
+mailsort train MailSortInbox -d sqlite:///email.db
 ```
+The folder you sort (here `MailSortInbox`) is always ignored during training - see `mailsort train` below.
 And to sort new emails from the `MailSortInbox` folder created in [Preparation](preparation) using the trained
 model:
 ```
@@ -41,7 +42,7 @@ it in the crontab in plain text:
 */5 * * * * mailsort sort MailSortInbox --host imap.example.com --username user@example.com --password "$(pass show imap/example.com)" -d sqlite:///home/user/email.db
 
 # Sync and retrain once a day at 03:00
-0 3 * * * mailsort sync --host imap.example.com --username user@example.com --password "$(pass show imap/example.com)" -d sqlite:///home/user/email.db && mailsort train -d sqlite:///home/user/email.db
+0 3 * * * mailsort sync --host imap.example.com --username user@example.com --password "$(pass show imap/example.com)" -d sqlite:///home/user/email.db && mailsort train MailSortInbox -d sqlite:///home/user/email.db
 ```
 Use an absolute path for the SQLite database (as above), since `cron` jobs do not run with the working directory you
 run `mailsort` from interactively. If `mailsort` is installed in a virtual environment, use the full path to its
@@ -57,7 +58,7 @@ Before trusting `mailsort sort` to move mail automatically, check how well it is
 data - `recommendation_ratio` (used by `predict`/`sort` below) is a threshold on a model score, not a guaranteed
 error rate, see [Evaluation and confidence](evaluation):
 ```
-mailsort evaluate -d sqlite:///email.db
+mailsort evaluate MailSortInbox -d sqlite:///email.db
 ```
 
 Run `mailsort --help` for the full list of top-level options, or `mailsort <command> --help` (e.g.
@@ -84,15 +85,16 @@ end up in your shell history in plain text.
 - `mailsort sync` downloads new and changed messages into the local database. Add `--quick` to only fetch new
   messages and skip re-checking the folders of already-known ones, or `--folder FOLDER` (repeatable) to restrict
   the sync to specific folders instead of every folder.
-- `mailsort train` (re-)trains one machine learning model per folder on the messages already stored in the local
+- `mailsort train FOLDER` (re-)trains one machine learning model per folder on the messages already stored in the local
   database. It never connects to the mail server. Add `--include-deleted` to also train on messages marked as
   deleted, or `--no-calibration` to keep every folder's raw classifier score even where there would be enough data
   to calibrate it (see [Evaluation and confidence](evaluation) - calibration is applied automatically per folder
-  where there is enough data, this only turns it off entirely). Add `--ignore-folder FOLDER` (repeatable) for the
-  folder you sort, e.g. `--ignore-folder MailSortInbox`: no model is trained for it and messages found only in it
-  are not used as training data. Without this, messages that were still unsorted at training time teach a
-  "stay in the inbox" model that outscores the real folders, so `mailsort sort` moves too little.
-  `mailsort evaluate` accepts the same option.
+  where there is enough data, this only turns it off entirely).
+  `FOLDER` is the folder you sort, e.g. `MailSortInbox`. It is always ignored during training: no model is trained
+  for it and messages found only in it are not used as training data. No message is meant to stay in that folder,
+  and messages that were still unsorted at training time would otherwise teach a "stay in the inbox" model that
+  outscores the real folders, so `mailsort sort` would move too little. `mailsort evaluate FOLDER` ignores it the
+  same way.
 - `mailsort predict FOLDER` downloads the messages currently in `FOLDER` and reports the model's recommendation
   for each, without moving, deleting or otherwise modifying anything on the server - see "Dry run / recommendation
   mode" below.

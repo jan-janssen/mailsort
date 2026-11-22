@@ -245,7 +245,7 @@ def _build_parser():
 examples:
   # train the machine learning model on your already-sorted folders
   mailsort sync --host imap.example.com --username user@example.com --password "..."
-  mailsort train
+  mailsort train MailSortInbox
 
   # preview what sorting MailSortInbox would do, without moving anything
   mailsort predict MailSortInbox --host imap.example.com --username user@example.com --password "..."
@@ -304,6 +304,13 @@ Run `mailsort <command> --help` for the arguments of an individual command.
         "stored in the local database (see 'mailsort sync'). Does not connect to the mail "
         "server and does not move any messages.",
     )
+    train_parser.add_argument(
+        "folder",
+        metavar="FOLDER",
+        help="The folder you sort (e.g. MailSortInbox). It is ignored during training: no "
+        "message is meant to stay in it, so its messages are mostly ones that were not sorted "
+        "yet, and a model for it would only keep messages from being moved.",
+    )
     _add_database_argument(train_parser, suppress_defaults=True)
     _add_identification_argument(train_parser, suppress_defaults=True)
     train_parser.add_argument(
@@ -317,16 +324,6 @@ Run `mailsort <command> --help` for the arguments of an individual command.
         help="Skip probability calibration and keep raw classifier scores even where there is "
         "enough data to calibrate. Calibration is applied automatically per folder where there "
         "is enough data (see 'mailsort evaluate'); this only turns it off entirely.",
-    )
-
-    train_parser.add_argument(
-        "--ignore-folder",
-        action="append",
-        default=None,
-        metavar="FOLDER",
-        help="Folder to ignore during training - may be given multiple times. Use this for the "
-        "folder you sort (e.g. MailSortInbox): its messages are mostly ones that were not "
-        "sorted yet, so a model for it would only keep messages from being moved.",
     )
 
     predict_parser = subparsers.add_parser(
@@ -382,6 +379,12 @@ Run `mailsort <command> --help` for the arguments of an individual command.
         "recommendation-ratio as if it were already a calibrated probability. Does not connect "
         "to the mail server, and never changes the models 'mailsort train' has already stored.",
     )
+    evaluate_parser.add_argument(
+        "folder",
+        metavar="FOLDER",
+        help="The folder you sort (e.g. MailSortInbox) - ignored exactly as in "
+        "'mailsort train', so the estimate matches what 'mailsort sort' will do.",
+    )
     _add_database_argument(evaluate_parser, suppress_defaults=True)
     _add_identification_argument(evaluate_parser, suppress_defaults=True)
     evaluate_parser.add_argument(
@@ -402,14 +405,6 @@ Run `mailsort <command> --help` for the arguments of an individual command.
         "--no-calibration",
         action="store_true",
         help="Evaluate with calibration turned off, to compare against the default.",
-    )
-    evaluate_parser.add_argument(
-        "--ignore-folder",
-        action="append",
-        default=None,
-        metavar="FOLDER",
-        help="Folder to ignore, as for 'mailsort train --ignore-folder' - may be given "
-        "multiple times. Use the same value as for training to evaluate what it does.",
     )
     evaluate_parser.add_argument(
         "--sweep",
@@ -481,10 +476,10 @@ def _run_sync(args, database, db_user_id):
 def _run_train(args, database, db_user_id):
     model_count = train_machine_learning_models(
         connection_str=database,
+        folder=args.folder,
         db_user_id=db_user_id,
         include_deleted=args.include_deleted,
         calibrate=not args.no_calibration,
-        exclude_label_lst=args.ignore_folder,
     )
     print(f"Trained {model_count} folder model(s) and stored them in {database!r}.")
     return _EXIT_OK
@@ -536,10 +531,10 @@ _SWEEP_RECOMMENDATION_RATIO_LST = (0.5, 0.7, 0.8, 0.9, 0.95, 0.99)
 def _run_evaluate(args, database, db_user_id):
     holdout = score_holdout(
         connection_str=database,
+        folder=args.folder,
         db_user_id=db_user_id,
         test_size=args.test_size,
         calibrate=not args.no_calibration,
-        exclude_label_lst=args.ignore_folder,
     )
     if holdout.test_message_count == 0:
         print(

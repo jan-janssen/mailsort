@@ -40,7 +40,7 @@ honest about the classifier's actual accuracy, which may still be poor. Check bo
 ## `mailsort evaluate`
 To check whether a `recommendation_ratio` is trustworthy for your own mailbox - rather than assuming it is - run:
 ```
-mailsort evaluate
+mailsort evaluate MailSortInbox
 ```
 This trains a **separate, throwaway** set of per-folder models on part of your local database and scores them
 against the rest, then reports:
@@ -66,7 +66,7 @@ place to operate; a low precision at any recall is not.
 
 When choosing a threshold, compare a few of them rather than assuming the default fits your data:
 ```
-mailsort evaluate --sweep
+mailsort evaluate MailSortInbox --sweep
 ```
 This reports coverage and precision at several thresholds (0.5, 0.7, 0.8, 0.9, 0.95, 0.99) from a single trained
 split, so you can pick the highest threshold whose coverage you can live with, rather than the lowest one whose

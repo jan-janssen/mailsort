@@ -52,11 +52,11 @@ pip install mailsort
 `mailsort` is organized around six subcommands - `sync`, `train`, `predict`, `sort`, `status` and `evaluate`:
 ```
 mailsort sync --host imap.example.com --username user@example.com --password "..."
-mailsort train
+mailsort train MailSortInbox
 mailsort predict some_label
 mailsort sort some_label
 mailsort status
-mailsort evaluate
+mailsort evaluate MailSortInbox
 ```
 The IMAP password is provided with `--password`, e.g. by having your shell pull it from a
 password manager.
@@ -105,7 +105,7 @@ with MailSorter(
     )
 ) as sorter:
     sorter.sync()
-    sorter.train()
+    sorter.train("MailSortInbox")
     predictions = sorter.predict("some_label")
     sorter.sort("some_label")
 ```
@@ -168,7 +168,9 @@ number suggests:
 ```python
 from mailsort.api import evaluate_models
 
-report = evaluate_models(connection_str="sqlite:///email.db", recommendation_ratio=0.9)
+report = evaluate_models(
+    connection_str="sqlite:///email.db", folder="MailSortInbox", recommendation_ratio=0.9
+)
 print(report.coverage, report.overall_precision)
 ```
 This trains a separate, throwaway set of models on part of your local database and scores them
@@ -194,7 +196,7 @@ imap = Imap(
     connection_str="sqlite:///email.db",
 )
 imap.update_database(quick=False)
-imap.fit_machine_learning_model_to_database()
+imap.fit_machine_learning_model_to_database(folder="some_label")
 imap.filter_messages_from_server(label="some_label", recommendation_ratio=0.9)
 ```
 `update_database()`, `fit_machine_learning_model_to_database()` and `filter_messages_from_server()`
@@ -219,7 +221,7 @@ credentials:
 ```python
 from mailsort.api import get_database_status, train_machine_learning_models
 
-train_machine_learning_models(connection_str="sqlite:///email.db")
+train_machine_learning_models(connection_str="sqlite:///email.db", folder="MailSortInbox")
 status = get_database_status(connection_str="sqlite:///email.db")
 print(status.message_count, status.trained_label_lst)
 ```
