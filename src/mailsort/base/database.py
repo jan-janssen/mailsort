@@ -418,7 +418,7 @@ class DatabaseInterface(DatabaseTemplate):
 
     def _commit_folder_table(self, df: pandas.DataFrame, user_id: int = 1) -> None:
         folder_lst = []
-        for email_id, lid_lst in zip(df["id"], df["labels"], strict=False):
+        for email_id, lid_lst in zip(df["id"], df["folders"], strict=False):
             for folder_id in lid_lst:
                 folder_lst.append(
                     Folders(email_id=email_id, folder_id=folder_id, user_id=user_id)
@@ -539,7 +539,7 @@ class DatabaseInterface(DatabaseTemplate):
                 "cc": email_cc_lst,
                 "date": email_date_lst,
                 "threads": email_threads_lst,
-                "labels": email_folders_lst,
+                "folders": email_folders_lst,
                 "subject": email_subject_lst,
                 "content": email_content_lst,
             }

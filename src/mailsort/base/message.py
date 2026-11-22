@@ -107,7 +107,7 @@ class AbstractMessage(ABC):
         return {
             "id": self.get_email_id(),
             "threads": self.get_thread_id(),
-            "labels": self.get_folder_ids(),
+            "folders": self.get_folder_ids(),
             "to": self.get_to(),
             "from": self.get_from(),
             "cc": self.get_cc(),

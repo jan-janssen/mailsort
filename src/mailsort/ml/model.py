@@ -56,6 +56,7 @@ def fit_machine_learning_models(
     calibrate: bool = True,
     min_samples_per_class_for_calibration: int = DEFAULT_MIN_SAMPLES_PER_CLASS_FOR_CALIBRATION,
     max_calibration_cv_folds: int = DEFAULT_MAX_CALIBRATION_CV_FOLDS,
+    folder_prefix: str = "labels_",
 ) -> dict[str, RandomForestClassifier]:
     """
     Train machine learning models, one per folder.
@@ -82,7 +83,7 @@ def fit_machine_learning_models(
     df_training = df_all_features.drop(["email_id"], axis=1)
     if max_workers == 1:
         return {
-            to_learn.split("labels_")[-1]: train_folder_classifier(
+            to_learn.split(folder_prefix)[-1]: train_folder_classifier(
                 n_estimators=n_estimators,
                 random_state=random_state,
                 bootstrap=bootstrap,
@@ -101,7 +102,7 @@ def fit_machine_learning_models(
     else:
         with ProcessPoolExecutor(max_workers=max_workers) as exe:
             futures_dict = {
-                to_learn.split("labels_")[-1]: exe.submit(
+                to_learn.split(folder_prefix)[-1]: exe.submit(
                     train_folder_classifier,
                     n_estimators=n_estimators,
                     random_state=random_state,

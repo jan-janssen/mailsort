@@ -64,7 +64,7 @@ class ThreadGroupedTrainTestSplitTest(TestCase):
                 {
                     "id": f"id{i}",
                     "threads": f"thread{i // thread_size}",
-                    "labels": ["Inbox"],
+                    "folders": ["Inbox"],
                     "from": "a@b.com",
                     "to": [],
                     "cc": [],
@@ -313,7 +313,7 @@ def _synthetic_email_df(row_count=300, folder_lst=("Inbox", "Receipts", "Newslet
                 "cc": [],
                 "date": datetime(2024, 1, 1) + timedelta(hours=i),
                 "threads": f"thread{i // 2}",
-                "labels": [folder],
+                "folders": [folder],
                 "subject": f"Subject {i}",
                 "content": None,
             }
@@ -337,7 +337,7 @@ class ScoreHoldoutSplitIntegrationTest(TestCase):
                 "cc",
                 "date",
                 "threads",
-                "labels",
+                "folders",
                 "subject",
                 "content",
             ]
@@ -449,7 +449,7 @@ class ScoreHoldoutSplitIntegrationTest(TestCase):
                 "cc": [],
                 "date": datetime(2024, 1, 1),
                 "threads": "rare_thread",
-                "labels": ["Rare"],
+                "folders": ["Rare"],
                 "subject": "s",
                 "content": None,
             }

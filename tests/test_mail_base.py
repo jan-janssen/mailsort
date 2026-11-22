@@ -94,7 +94,7 @@ class AbstractMailBoxTest(TestCase):
             "id1": {
                 "id": "id1",
                 "threads": "t1",
-                "labels": [],
+                "folders": [],
                 "to": [],
                 "from": None,
                 "cc": [],
@@ -134,7 +134,7 @@ class AbstractMailBoxTest(TestCase):
             "new": {
                 "id": "new",
                 "threads": "t",
-                "labels": [],
+                "folders": [],
                 "to": [],
                 "from": None,
                 "cc": [],
@@ -165,7 +165,7 @@ class AbstractMailBoxTest(TestCase):
             "new": {
                 "id": "new",
                 "threads": "t",
-                "labels": [],
+                "folders": [],
                 "to": [],
                 "from": None,
                 "cc": [],
@@ -199,7 +199,7 @@ class AbstractMailBoxTest(TestCase):
                     "from": "a@b.com",
                     "to": [],
                     "cc": [],
-                    "labels": [],
+                    "folders": [],
                     "threads": "t",
                 }
             ]
@@ -232,7 +232,7 @@ class AbstractMailBoxTest(TestCase):
             "id1": {
                 "id": "id1",
                 "threads": "t1",
-                "labels": ["Inbox"],
+                "folders": ["Inbox"],
                 "to": [],
                 "from": None,
                 "cc": [],
@@ -271,7 +271,7 @@ class AbstractMailBoxTest(TestCase):
             "id1": {
                 "id": "id1",
                 "threads": "t1",
-                "labels": ["Inbox"],
+                "folders": ["Inbox"],
                 "to": [],
                 "from": None,
                 "cc": [],

@@ -165,7 +165,7 @@ class MessageTest(TestCase):
                 ),
                 "from": "sender@server.net",
                 "id": "INBOX\x1f42",
-                "labels": ["INBOX"],
+                "folders": ["INBOX"],
                 "subject": "Test Email Subject",
                 "threads": "<abc123@server.net>",
                 "to": ["me@mail.com", "friend@provider.org"],
