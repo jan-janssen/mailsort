@@ -169,7 +169,9 @@ number suggests:
 from mailsort.api import evaluate_models
 
 report = evaluate_models(
-    connection_str="sqlite:///email.db", folder="MailSortInbox", recommendation_ratio=0.9
+    connection_str="sqlite:///email.db",
+    folder="MailSortInbox",
+    recommendation_ratio=0.9,
 )
 print(report.coverage, report.overall_precision)
 ```
@@ -221,7 +223,9 @@ credentials:
 ```python
 from mailsort.api import get_database_status, train_machine_learning_models
 
-train_machine_learning_models(connection_str="sqlite:///email.db", folder="MailSortInbox")
+train_machine_learning_models(
+    connection_str="sqlite:///email.db", folder="MailSortInbox"
+)
 status = get_database_status(connection_str="sqlite:///email.db")
 print(status.message_count, status.trained_label_lst)
 ```

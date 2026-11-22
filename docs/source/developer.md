@@ -257,7 +257,9 @@ database and scores them against the rest, without touching the models `mailsort
 from mailsort.api import evaluate_models
 
 report = evaluate_models(
-    connection_str="sqlite:///email.db", folder="MailSortInbox", recommendation_ratio=0.9
+    connection_str="sqlite:///email.db",
+    folder="MailSortInbox",
+    recommendation_ratio=0.9,
 )
 print(report.coverage, report.overall_precision)
 for folder_metrics in report.folder_metrics:
@@ -287,7 +289,9 @@ lower-level `mailsort.evaluation`/`mailsort.ml.evaluation` functions directly:
 ```python
 from mailsort.evaluation import evaluate_at_threshold, score_holdout
 
-holdout = score_holdout(connection_str="sqlite:///email.db", folder="MailSortInbox")  # trains and scores once
+holdout = score_holdout(
+    connection_str="sqlite:///email.db", folder="MailSortInbox"
+)  # trains and scores once
 for ratio in (0.7, 0.8, 0.9, 0.95):
     report = evaluate_at_threshold(holdout, recommendation_ratio=ratio)
     print(ratio, report.coverage, report.overall_precision)
