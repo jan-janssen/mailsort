@@ -208,7 +208,7 @@ class AbstractMailBoxTest(TestCase):
         fit_mock.return_value = {"Inbox": MagicMock()}
 
         result = mailbox.fit_machine_learning_model_to_database(
-            n_estimators=5, max_features=2
+            folder="Inbox", n_estimators=5, max_features=2
         )
 
         db_ml.store_models.assert_called_once()
@@ -408,7 +408,7 @@ class AbstractMailBoxTest(TestCase):
 
     @patch("mailsort.base.mail.fit_machine_learning_models")
     @patch("mailsort.base.mail.encode_df_for_machine_learning")
-    def test_fit_excludes_labels_before_encoding(self, encode_mock, fit_mock):
+    def test_fit_ignores_the_sorted_folder_before_encoding(self, encode_mock, fit_mock):
         db_email = MagicMock()
         db_email.get_all_emails.return_value = pd.DataFrame(
             [
@@ -424,7 +424,7 @@ class AbstractMailBoxTest(TestCase):
         )
         fit_mock.return_value = {"Sorted": MagicMock()}
 
-        mailbox.fit_machine_learning_model_to_database(exclude_label_lst=["Inbox"])
+        mailbox.fit_machine_learning_model_to_database(folder="Inbox")
 
         encoded_df = encode_mock.call_args.kwargs["df"]
         self.assertEqual(encoded_df["id"].tolist(), ["b", "c"])

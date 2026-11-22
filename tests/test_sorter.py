@@ -57,10 +57,11 @@ class MailSorterTest(TestCase):
         )
 
         result = self.sorter.train(
-            n_estimators=5, max_features=2, include_deleted=True, max_workers=1
+            "Inbox", n_estimators=5, max_features=2, include_deleted=True, max_workers=1
         )
 
         self.mailbox.fit_machine_learning_model_to_database.assert_called_once_with(
+            folder="Inbox",
             n_estimators=5,
             max_features=2,
             random_state=42,
@@ -70,7 +71,6 @@ class MailSorterTest(TestCase):
             calibrate=True,
             min_samples_per_class_for_calibration=20,
             max_calibration_cv_folds=5,
-            exclude_label_lst=None,
         )
         self.assertEqual(result.trained_label_lst, ["Inbox", "Receipts"])
         self.assertEqual(result.model_count, 2)
@@ -81,12 +81,14 @@ class MailSorterTest(TestCase):
         )
 
         self.sorter.train(
+            "Inbox",
             calibrate=False,
             min_samples_per_class_for_calibration=5,
             max_calibration_cv_folds=3,
         )
 
         self.mailbox.fit_machine_learning_model_to_database.assert_called_once_with(
+            folder="Inbox",
             n_estimators=100,
             max_features=400,
             random_state=42,
@@ -96,18 +98,17 @@ class MailSorterTest(TestCase):
             calibrate=False,
             min_samples_per_class_for_calibration=5,
             max_calibration_cv_folds=3,
-            exclude_label_lst=None,
         )
 
-    def test_train_forwards_excluded_folders(self):
+    def test_train_forwards_the_sorted_folder(self):
         self.mailbox.fit_machine_learning_model_to_database.return_value = TrainResult(
             []
         )
 
-        self.sorter.train(exclude_folders=["MailSortInbox"])
+        self.sorter.train("MailSortInbox")
 
         _, kwargs = self.mailbox.fit_machine_learning_model_to_database.call_args
-        self.assertEqual(kwargs["exclude_label_lst"], ["MailSortInbox"])
+        self.assertEqual(kwargs["folder"], "MailSortInbox")
 
     def test_predict_passes_through_the_predictions_from_the_mailbox(self):
         # get_label_recommendations() already returns list[Prediction] - predict() is a pure

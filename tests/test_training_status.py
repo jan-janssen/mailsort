@@ -68,6 +68,7 @@ class TrainingAndStatusIntegrationTest(TestCase):
     def test_train_then_status_reports_consistent_state(self):
         model_count = train_machine_learning_models(
             connection_str=self.connection_str,
+            folder="Elsewhere",
             db_user_id=1,
             n_estimators=5,
             max_features=2,
@@ -84,14 +85,14 @@ class TrainingAndStatusIntegrationTest(TestCase):
         self.assertEqual(set(status.trained_label_lst), {"Inbox", "Receipts"})
         self.assertGreater(status.feature_count, 0)
 
-    def test_train_ignores_excluded_folder(self):
+    def test_train_always_ignores_the_sorted_folder(self):
         model_count = train_machine_learning_models(
             connection_str=self.connection_str,
+            folder="Inbox",
             db_user_id=1,
             n_estimators=5,
             max_features=2,
             max_workers=1,
-            exclude_label_lst=["Inbox"],
         )
         self.assertEqual(model_count, 1)
 

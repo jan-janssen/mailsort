@@ -56,36 +56,35 @@ def encode_df_for_machine_learning(
         return df_all_features, df_all_encode[label_lst]
 
 
-def remove_excluded_labels(
-    df: pandas.DataFrame, exclude_label_lst: list[str] | None = None
+def remove_folder_from_labels(
+    df: pandas.DataFrame, folder: str | None = None
 ) -> pandas.DataFrame:
     """
-    Remove folders from the training data, so no model is trained for them.
+    Remove the folder that gets sorted from the training data, so no model is trained for it.
 
-    Typically this is the folder mailsort sorts (e.g. "MailSortInbox"): its messages are mostly
-    ones that were simply not sorted yet when training took place, so a model for it would only
-    learn "looks unsorted" and compete with - and usually outscore - the real target folders.
+    No message is meant to stay in the folder mailsort sorts (e.g. "MailSortInbox"). Its messages
+    are mostly ones that were simply not sorted yet when training took place, so a model for it
+    would only learn "looks unsorted" and compete with - and usually outscore - the real target
+    folders.
 
-    The excluded folders are removed from every message's labels. Messages that were *only* in
-    excluded folders are dropped entirely: they carry no information about where a message
-    belongs and would otherwise act as negative examples for every real folder.
+    The folder is removed from every message's labels. Messages that were *only* in that folder
+    are dropped entirely: they carry no information about where a message belongs and would
+    otherwise act as negative examples for every real folder.
 
     Args:
         df (pandas.DataFrame): DataFrame with emails, including a "labels" column of folder lists
-        exclude_label_lst (list): folders to remove - if empty/None, df is returned unchanged
+        folder (str): folder to remove - if None, df is returned unchanged
 
     Returns:
-        pandas.DataFrame: copy of df without the excluded folders (index reset)
+        pandas.DataFrame: copy of df without the folder (index reset)
     """
-    if not exclude_label_lst:
+    if folder is None:
         return df
-    exclude_set = set(exclude_label_lst)
     original_lst = [
         list(labels) if labels is not None else [] for labels in df["labels"].values
     ]
     filtered_lst = [
-        [label for label in labels if label not in exclude_set]
-        for labels in original_lst
+        [label for label in labels if label != folder] for labels in original_lst
     ]
     keep = [
         len(filtered) > 0 or len(original) == 0

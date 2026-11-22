@@ -366,7 +366,7 @@ class ScoreHoldoutSplitIntegrationTest(TestCase):
         self.assertGreater(report.coverage, 0.8)
         self.assertGreater(report.overall_precision, 0.9)
 
-    def test_excluded_folder_is_not_trained_or_scored(self):
+    def test_sorted_folder_is_not_trained_or_scored(self):
         df = _synthetic_email_df(row_count=240, folder_lst=("Inbox", "Spam", "Work"))
 
         holdout = score_holdout_split(
@@ -375,7 +375,7 @@ class ScoreHoldoutSplitIntegrationTest(TestCase):
             random_state=0,
             n_estimators=10,
             max_workers=1,
-            exclude_label_lst=["Inbox"],
+            folder="Inbox",
         )
 
         self.assertEqual(holdout.trained_label_lst, ["Spam", "Work"])
@@ -386,7 +386,7 @@ class ScoreHoldoutSplitIntegrationTest(TestCase):
             )
         )
 
-    def test_evaluate_machine_learning_models_forwards_exclusion(self):
+    def test_evaluate_machine_learning_models_forwards_folder(self):
         df = _synthetic_email_df(row_count=240, folder_lst=("Inbox", "Spam", "Work"))
 
         report = evaluate_machine_learning_models(
@@ -395,7 +395,7 @@ class ScoreHoldoutSplitIntegrationTest(TestCase):
             random_state=0,
             n_estimators=10,
             max_workers=1,
-            exclude_label_lst=["Inbox"],
+            folder="Inbox",
         )
 
         self.assertNotIn("Inbox", report.calibration_status)

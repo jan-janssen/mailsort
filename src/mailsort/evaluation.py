@@ -47,7 +47,7 @@ def evaluate_models(
     max_calibration_cv_folds=5,
     max_workers=None,
     label_prefix="labels_",
-    exclude_label_lst=None,
+    folder=None,
 ):
     """
     Evaluate the machine learning training procedure on the emails already stored in the local
@@ -72,7 +72,7 @@ def evaluate_models(
         max_calibration_cv_folds (int): see mailsort.ml.calibration.calibration_cv_folds()
         max_workers (int): maximum number of workers for the machine learning models
         label_prefix (str): prefix used to recognise label columns during feature encoding
-        exclude_label_lst (list[str]): folders to ignore, as in training - default: None
+        folder (str): the folder that gets sorted, ignored as in training - default: None
 
     Returns:
         mailsort.ml.evaluation.EvaluationReport
@@ -97,7 +97,7 @@ def evaluate_models(
             max_calibration_cv_folds=max_calibration_cv_folds,
             max_workers=max_workers,
             label_prefix=label_prefix,
-            exclude_label_lst=exclude_label_lst,
+            folder=folder,
         )
     finally:
         session.close()
@@ -121,7 +121,7 @@ def score_holdout(
     max_calibration_cv_folds=5,
     max_workers=None,
     label_prefix="labels_",
-    exclude_label_lst=None,
+    folder=None,
 ):
     """
     Connection-string equivalent of mailsort.ml.evaluation.score_holdout_split() - trains and
@@ -153,7 +153,7 @@ def score_holdout(
             max_calibration_cv_folds=max_calibration_cv_folds,
             max_workers=max_workers,
             label_prefix=label_prefix,
-            exclude_label_lst=exclude_label_lst,
+            folder=folder,
         )
     finally:
         session.close()
