@@ -54,7 +54,9 @@ class DatabaseTest(TestCase):
 
     def test_get_emails_by_label(self):
         self.assertEqual(
-            self.database.get_emails_by_folder(folder_id="Label_123").id.values.tolist(),
+            self.database.get_emails_by_folder(
+                folder_id="Label_123"
+            ).id.values.tolist(),
             ["myid123"],
         )
 
@@ -121,25 +123,33 @@ class DatabaseTest(TestCase):
             message_id_lst=["myid123"], message_meta_lst=[["important", "Label_456"]]
         )
         self.assertEqual(
-            self.database.get_emails_by_folder(folder_id="Label_123").id.values.tolist(),
+            self.database.get_emails_by_folder(
+                folder_id="Label_123"
+            ).id.values.tolist(),
             [],
         )
         self.assertEqual(
-            self.database.get_emails_by_folder(folder_id="Label_456").id.values.tolist(),
+            self.database.get_emails_by_folder(
+                folder_id="Label_456"
+            ).id.values.tolist(),
             ["myid123"],
         )
         self.database.update_labels(
             message_id_lst=["myid123"], message_meta_lst=[["important"]]
         )
         self.assertEqual(
-            self.database.get_emails_by_folder(folder_id="Label_456").id.values.tolist(),
+            self.database.get_emails_by_folder(
+                folder_id="Label_456"
+            ).id.values.tolist(),
             [],
         )
         self.database.update_labels(
             message_id_lst=["myid123"], message_meta_lst=[["important"]]
         )
         self.assertEqual(
-            self.database.get_emails_by_folder(folder_id="Label_456").id.values.tolist(),
+            self.database.get_emails_by_folder(
+                folder_id="Label_456"
+            ).id.values.tolist(),
             [],
         )
 
