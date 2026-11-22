@@ -138,7 +138,7 @@ class HoldoutScores:
             folder in common with the trained label set)
         excluded_test_message_count: held-out messages skipped because none of their folder(s)
             were part of the trained label set - see the module docstring
-        trained_label_lst: folders a held-out model was trained for
+        trained_folder_lst: folders a held-out model was trained for
         calibration_status: whether each trained folder's classifier ended up calibrated - see
             mailsort.ml.calibration.should_calibrate()
         scored_message_lst: per-message raw scores, see ScoredTestMessage
@@ -147,7 +147,7 @@ class HoldoutScores:
     train_message_count: int
     test_message_count: int
     excluded_test_message_count: int
-    trained_label_lst: list[str]
+    trained_folder_lst: list[str]
     calibration_status: dict[str, bool]
     scored_message_lst: list[ScoredTestMessage]
 
@@ -204,7 +204,7 @@ def score_holdout_split(
             train_message_count=0,
             test_message_count=0,
             excluded_test_message_count=len(df_test),
-            trained_label_lst=[],
+            trained_folder_lst=[],
             calibration_status={},
             scored_message_lst=[],
         )
@@ -304,7 +304,7 @@ def score_holdout_split(
         train_message_count=len(df_train),
         test_message_count=len(scored_message_lst),
         excluded_test_message_count=excluded_test_message_count,
-        trained_label_lst=sorted(trained_label_set),
+        trained_folder_lst=sorted(trained_label_set),
         calibration_status={
             label: is_calibrated(model) for label, model in model_dict.items()
         },

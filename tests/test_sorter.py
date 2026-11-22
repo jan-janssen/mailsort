@@ -53,7 +53,7 @@ class MailSorterTest(TestCase):
 
     def test_train_delegates_to_fit_machine_learning_model_to_database(self):
         self.mailbox.fit_machine_learning_model_to_database.return_value = TrainResult(
-            trained_label_lst=["Inbox", "Receipts"]
+            trained_folder_lst=["Inbox", "Receipts"]
         )
 
         result = self.sorter.train(
@@ -72,7 +72,7 @@ class MailSorterTest(TestCase):
             min_samples_per_class_for_calibration=20,
             max_calibration_cv_folds=5,
         )
-        self.assertEqual(result.trained_label_lst, ["Inbox", "Receipts"])
+        self.assertEqual(result.trained_folder_lst, ["Inbox", "Receipts"])
         self.assertEqual(result.model_count, 2)
 
     def test_train_forwards_calibration_arguments(self):

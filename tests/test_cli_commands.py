@@ -310,7 +310,7 @@ class StatusCommandTest(TestCase):
             message_count=12,
             active_message_count=10,
             deleted_message_count=2,
-            trained_label_lst=["Inbox", "Receipts"],
+            trained_folder_lst=["Inbox", "Receipts"],
             feature_count=42,
         )
 
@@ -335,7 +335,7 @@ class StatusCommandTest(TestCase):
             message_count=0,
             active_message_count=0,
             deleted_message_count=0,
-            trained_label_lst=[],
+            trained_folder_lst=[],
             feature_count=0,
         )
 
@@ -362,7 +362,7 @@ class EvaluateCommandTest(TestCase):
             train_message_count=80,
             test_message_count=2,
             excluded_test_message_count=0,
-            trained_label_lst=["Inbox", "Spam"],
+            trained_folder_lst=["Inbox", "Spam"],
             calibration_status={"Inbox": True, "Spam": False},
             scored_message_lst=[
                 ScoredTestMessage(
@@ -452,7 +452,7 @@ class EvaluateCommandTest(TestCase):
             train_message_count=0,
             test_message_count=0,
             excluded_test_message_count=0,
-            trained_label_lst=[],
+            trained_folder_lst=[],
             calibration_status={},
             scored_message_lst=[],
         )
@@ -484,7 +484,7 @@ class FormatStatusTableTest(TestCase):
                 message_count=0,
                 active_message_count=0,
                 deleted_message_count=0,
-                trained_label_lst=[],
+                trained_folder_lst=[],
                 feature_count=0,
             )
         )
@@ -498,7 +498,7 @@ class FormatStatusTableTest(TestCase):
                 message_count=5,
                 active_message_count=4,
                 deleted_message_count=1,
-                trained_label_lst=["Inbox", "Spam"],
+                trained_folder_lst=["Inbox", "Spam"],
                 feature_count=7,
             )
         )

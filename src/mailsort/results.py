@@ -58,15 +58,15 @@ class TrainResult:
     See AbstractMailBox.fit_machine_learning_model_to_database() / mailsort.MailSorter.train().
 
     Attributes:
-        trained_label_lst (list[str]): folders/labels a model was trained for, sorted
+        trained_folder_lst (list[str]): folders/labels a model was trained for, sorted
     """
 
-    trained_label_lst: list[str]
+    trained_folder_lst: list[str]
 
     @property
     def model_count(self) -> int:
         """Number of per-folder models trained."""
-        return len(self.trained_label_lst)
+        return len(self.trained_folder_lst)
 
 
 @dataclass(frozen=True)

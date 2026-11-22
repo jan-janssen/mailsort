@@ -75,7 +75,7 @@ def _format_status_table(status):
     Render a mailsort.status.DatabaseStatus as human-readable text for the command line.
     """
     trained_folders = (
-        ", ".join(status.trained_label_lst) if status.trained_label_lst else "none"
+        ", ".join(status.trained_folder_lst) if status.trained_folder_lst else "none"
     )
     return "\n".join(
         [
@@ -83,7 +83,7 @@ def _format_status_table(status):
             f"Database user id:       {status.db_user_id}",
             f"Known messages:         {status.message_count} total "
             f"({status.active_message_count} active, {status.deleted_message_count} deleted)",
-            f"Trained folder models:  {len(status.trained_label_lst)} ({trained_folders})",
+            f"Trained folder models:  {len(status.trained_folder_lst)} ({trained_folders})",
             f"Machine learning features stored: {status.feature_count}",
         ]
     )
