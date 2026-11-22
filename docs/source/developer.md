@@ -33,10 +33,10 @@ with MailSorter(
   `trained_folder_lst` and `model_count`. Each folder's classifier is calibrated when (and only when) it has enough
   training data to do so safely - see [Evaluation and confidence](evaluation) and `mailsort.ml.calibration` below;
   pass `calibrate=False` to keep every folder's raw score instead.
-- `predict(folder, recommendation_ratio=0.9, folder_prefix="folders_")` - read-only; returns a `list[Prediction]`
+- `predict(folder, recommendation_ratio=0.9, folder_prefix="labels_")` - read-only; returns a `list[Prediction]`
   without moving, deleting or otherwise modifying anything on the server. See "Dry run / recommendation mode"
   below.
-- `sort(folder, recommendation_ratio=0.9, folder_prefix="folders_")` - scores messages exactly as `predict()` does
+- `sort(folder, recommendation_ratio=0.9, folder_prefix="labels_")` - scores messages exactly as `predict()` does
   with the same arguments, then moves the ones that clear `recommendation_ratio`; returns a `SortResult` with
   `moved_lst` and `moved_count`. This is the only `MailSorter` method that changes the mailbox.
   `recommendation_ratio` is a cutoff on a model score, not a guaranteed probability of being correct - see

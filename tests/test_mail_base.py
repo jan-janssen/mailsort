@@ -207,7 +207,7 @@ class AbstractMailBoxTest(TestCase):
         db_ml = MagicMock()
         mailbox = _StubMailBox(database_email=db_email, database_ml=db_ml)
         features = pd.DataFrame([{"email_id": "x", "f1": 1}])
-        folders = pd.DataFrame([{"folders_Inbox": 1}])
+        folders = pd.DataFrame([{"labels_Inbox": 1}])
         encode_mock.return_value = (features, folders)
         fit_mock.return_value = {"Inbox": MagicMock()}
 
@@ -424,7 +424,7 @@ class AbstractMailBoxTest(TestCase):
         mailbox = _StubMailBox(database_email=db_email, database_ml=MagicMock())
         encode_mock.return_value = (
             pd.DataFrame([{"email_id": "b", "f1": 1}]),
-            pd.DataFrame([{"folders_Sorted": 1}]),
+            pd.DataFrame([{"labels_Sorted": 1}]),
         )
         fit_mock.return_value = {"Sorted": MagicMock()}
 

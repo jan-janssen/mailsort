@@ -162,7 +162,8 @@ def _encoding_helper(df: pandas.DataFrame) -> tuple[np.ndarray, list[str]]:
         (dict_folders_lst, dict_cc_lst, dict_from_lst, dict_threads_lst, dict_to_lst)
     )
     all_folders = (
-        _get_lst_without_none(lst=folders_red_lst, column="folders")
+        # The one-hot encoded folder columns keep the "labels_" prefix (see folder_prefix)
+        _get_lst_without_none(lst=folders_red_lst, column="labels")
         + _get_lst_without_none(lst=cc_red_lst, column="cc")
         + _get_lst_without_none(lst=from_red_lst, column="from")
         + _get_lst_without_none(lst=thread_red_lst, column="threads")
