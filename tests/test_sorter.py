@@ -70,6 +70,7 @@ class MailSorterTest(TestCase):
             calibrate=True,
             min_samples_per_class_for_calibration=20,
             max_calibration_cv_folds=5,
+            exclude_label_lst=None,
         )
         self.assertEqual(result.trained_label_lst, ["Inbox", "Receipts"])
         self.assertEqual(result.model_count, 2)
@@ -95,7 +96,18 @@ class MailSorterTest(TestCase):
             calibrate=False,
             min_samples_per_class_for_calibration=5,
             max_calibration_cv_folds=3,
+            exclude_label_lst=None,
         )
+
+    def test_train_forwards_excluded_folders(self):
+        self.mailbox.fit_machine_learning_model_to_database.return_value = TrainResult(
+            []
+        )
+
+        self.sorter.train(exclude_folders=["MailSortInbox"])
+
+        _, kwargs = self.mailbox.fit_machine_learning_model_to_database.call_args
+        self.assertEqual(kwargs["exclude_label_lst"], ["MailSortInbox"])
 
     def test_predict_passes_through_the_predictions_from_the_mailbox(self):
         # get_label_recommendations() already returns list[Prediction] - predict() is a pure

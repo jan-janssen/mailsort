@@ -8,6 +8,7 @@ from mailsort.ml import (
     DEFAULT_MIN_SAMPLES_PER_CLASS_FOR_CALIBRATION,
     encode_df_for_machine_learning,
     fit_machine_learning_models,
+    remove_excluded_labels,
     score_messages_with_machine_learning_models,
 )
 from mailsort.results import Prediction, ScoreType, SortResult, SyncResult, TrainResult
@@ -151,6 +152,12 @@ class AbstractMailBox(ABC):
         if len(df_partial) == 0:
             return []
         model_reload_dict, feature_reload_lst = self._db_ml.load_models()
+        # A message can never be "moved" into the folder it is already in, so that folder must not
+        # compete as a candidate - otherwise a model trained before 'exclude_label_lst' existed
+        # (or without it) can outscore every real target folder and silently block the move.
+        model_reload_dict = {
+            key: model for key, model in model_reload_dict.items() if key != label
+        }
         if len(model_reload_dict) == 0:
             # No machine learning model has been trained yet (fit_machine_learning_model_to_database()
             # was never run) - nothing to score against, so every message abstains rather than
@@ -213,6 +220,7 @@ class AbstractMailBox(ABC):
         calibrate=True,
         min_samples_per_class_for_calibration=DEFAULT_MIN_SAMPLES_PER_CLASS_FOR_CALIBRATION,
         max_calibration_cv_folds=DEFAULT_MAX_CALIBRATION_CV_FOLDS,
+        exclude_label_lst=None,
     ):
         """
         Fit machine learning models to emails stored in database and afterwards store machine learning models in
@@ -233,11 +241,16 @@ class AbstractMailBox(ABC):
             min_samples_per_class_for_calibration (int): see
                 mailsort.ml.calibration.should_calibrate()
             max_calibration_cv_folds (int): see mailsort.ml.calibration.calibration_cv_folds()
+            exclude_label_lst (list[str]): folders to ignore during training, typically the folder
+                that gets sorted (e.g. ["MailSortInbox"]) - no model is trained for them and
+                messages only found in them are not used as training data. See
+                mailsort.ml.encoding.remove_excluded_labels() - default: None
 
         Returns:
             mailsort.results.TrainResult: the folders/labels a model was trained for
         """
         df_all = self.get_all_emails_in_database(include_deleted=include_deleted)
+        df_all = remove_excluded_labels(df=df_all, exclude_label_lst=exclude_label_lst)
         df_all_features, df_all_labels = encode_df_for_machine_learning(
             df=df_all, feature_lst=[], label_lst=[], return_labels=True
         )

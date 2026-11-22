@@ -56,6 +56,46 @@ def encode_df_for_machine_learning(
         return df_all_features, df_all_encode[label_lst]
 
 
+def remove_excluded_labels(
+    df: pandas.DataFrame, exclude_label_lst: list[str] | None = None
+) -> pandas.DataFrame:
+    """
+    Remove folders from the training data, so no model is trained for them.
+
+    Typically this is the folder mailsort sorts (e.g. "MailSortInbox"): its messages are mostly
+    ones that were simply not sorted yet when training took place, so a model for it would only
+    learn "looks unsorted" and compete with - and usually outscore - the real target folders.
+
+    The excluded folders are removed from every message's labels. Messages that were *only* in
+    excluded folders are dropped entirely: they carry no information about where a message
+    belongs and would otherwise act as negative examples for every real folder.
+
+    Args:
+        df (pandas.DataFrame): DataFrame with emails, including a "labels" column of folder lists
+        exclude_label_lst (list): folders to remove - if empty/None, df is returned unchanged
+
+    Returns:
+        pandas.DataFrame: copy of df without the excluded folders (index reset)
+    """
+    if not exclude_label_lst:
+        return df
+    exclude_set = set(exclude_label_lst)
+    original_lst = [
+        list(labels) if labels is not None else [] for labels in df["labels"].values
+    ]
+    filtered_lst = [
+        [label for label in labels if label not in exclude_set]
+        for labels in original_lst
+    ]
+    keep = [
+        len(filtered) > 0 or len(original) == 0
+        for original, filtered in zip(original_lst, filtered_lst, strict=True)
+    ]
+    df_new = df.copy()
+    df_new["labels"] = pandas.Series(filtered_lst, index=df.index, dtype=object)
+    return df_new[keep].reset_index(drop=True)
+
+
 def one_hot_encoding(
     df: pandas.DataFrame, feature_lst: list[str] | None = None
 ) -> pandas.DataFrame:

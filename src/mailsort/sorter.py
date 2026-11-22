@@ -103,6 +103,7 @@ class MailSorter:
         calibrate: bool = True,
         min_samples_per_class_for_calibration: int = DEFAULT_MIN_SAMPLES_PER_CLASS_FOR_CALIBRATION,
         max_calibration_cv_folds: int = DEFAULT_MAX_CALIBRATION_CV_FOLDS,
+        exclude_folders: list[str] | None = None,
     ) -> TrainResult:
         """
         (Re-)train one machine learning model per folder on the messages in the local database -
@@ -122,6 +123,9 @@ class MailSorter:
             min_samples_per_class_for_calibration: see
                 mailsort.ml.calibration.should_calibrate()
             max_calibration_cv_folds: see mailsort.ml.calibration.calibration_cv_folds()
+            exclude_folders: folders to ignore during training, typically the folder you sort
+                (e.g. ["MailSortInbox"]) - no model is trained for them and messages found only
+                in them are not used as training data
 
         Returns:
             TrainResult: the folders a model was trained for
@@ -136,6 +140,7 @@ class MailSorter:
             calibrate=calibrate,
             min_samples_per_class_for_calibration=min_samples_per_class_for_calibration,
             max_calibration_cv_folds=max_calibration_cv_folds,
+            exclude_label_lst=exclude_folders,
         )
 
     def predict(

@@ -88,7 +88,11 @@ end up in your shell history in plain text.
   database. It never connects to the mail server. Add `--include-deleted` to also train on messages marked as
   deleted, or `--no-calibration` to keep every folder's raw classifier score even where there would be enough data
   to calibrate it (see [Evaluation and confidence](evaluation) - calibration is applied automatically per folder
-  where there is enough data, this only turns it off entirely).
+  where there is enough data, this only turns it off entirely). Add `--ignore-folder FOLDER` (repeatable) for the
+  folder you sort, e.g. `--ignore-folder MailSortInbox`: no model is trained for it and messages found only in it
+  are not used as training data. Without this, messages that were still unsorted at training time teach a
+  "stay in the inbox" model that outscores the real folders, so `mailsort sort` moves too little.
+  `mailsort evaluate` accepts the same option.
 - `mailsort predict FOLDER` downloads the messages currently in `FOLDER` and reports the model's recommendation
   for each, without moving, deleting or otherwise modifying anything on the server - see "Dry run / recommendation
   mode" below.

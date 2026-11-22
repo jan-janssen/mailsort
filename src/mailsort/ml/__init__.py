@@ -4,7 +4,10 @@ from mailsort.ml.calibration import (
     is_calibrated,
 )
 from mailsort.ml.database import get_machine_learning_database
-from mailsort.ml.encoding import encode_df_for_machine_learning
+from mailsort.ml.encoding import (
+    encode_df_for_machine_learning,
+    remove_excluded_labels,
+)
 from mailsort.ml.model import (
     fit_machine_learning_models,
     get_predictions_from_machine_learning_models,
@@ -19,5 +22,6 @@ __all__ = [
     "fit_machine_learning_models",
     "get_predictions_from_machine_learning_models",
     "is_calibrated",
+    "remove_excluded_labels",
     "score_messages_with_machine_learning_models",
 ]
