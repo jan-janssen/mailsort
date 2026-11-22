@@ -406,6 +406,100 @@ class AbstractMailBoxTest(TestCase):
         )
         self.assertEqual(mailbox.modify_calls, [])
 
+    @patch("mailsort.base.mail.fit_machine_learning_models")
+    @patch("mailsort.base.mail.encode_df_for_machine_learning")
+    def test_fit_excludes_labels_before_encoding(self, encode_mock, fit_mock):
+        db_email = MagicMock()
+        db_email.get_all_emails.return_value = pd.DataFrame(
+            [
+                {"id": "a", "labels": ["Inbox"]},
+                {"id": "b", "labels": ["Inbox", "Sorted"]},
+                {"id": "c", "labels": ["Sorted"]},
+            ]
+        )
+        mailbox = _StubMailBox(database_email=db_email, database_ml=MagicMock())
+        encode_mock.return_value = (
+            pd.DataFrame([{"email_id": "b", "f1": 1}]),
+            pd.DataFrame([{"labels_Sorted": 1}]),
+        )
+        fit_mock.return_value = {"Sorted": MagicMock()}
+
+        mailbox.fit_machine_learning_model_to_database(exclude_label_lst=["Inbox"])
+
+        encoded_df = encode_mock.call_args.kwargs["df"]
+        self.assertEqual(encoded_df["id"].tolist(), ["b", "c"])
+        self.assertEqual(encoded_df["labels"].tolist(), [["Sorted"], ["Sorted"]])
+
+    @patch("mailsort.base.mail.score_messages_with_machine_learning_models")
+    @patch("mailsort.base.mail.encode_df_for_machine_learning")
+    def test_get_label_recommendations_ignores_source_folder_model(
+        self, encode_mock, score_mock
+    ):
+        db_ml = MagicMock()
+        inbox_model, sorted_model = MagicMock(), MagicMock()
+        db_ml.load_models.return_value = (
+            {"Inbox": inbox_model, "Sorted": sorted_model},
+            ["f1"],
+        )
+        mailbox = _StubMailBox(database_ml=db_ml)
+        mailbox.search_result = ["id1"]
+        mailbox.message_detail_dict = {
+            "id1": {
+                "id": "id1",
+                "threads": "t1",
+                "labels": ["Inbox"],
+                "to": [],
+                "from": None,
+                "cc": [],
+                "subject": "Hello",
+                "content": "c1",
+                "date": None,
+            }
+        }
+        encode_mock.return_value = pd.DataFrame({"email_id": ["id1"], "f1": [1]})
+        score_mock.return_value = [
+            {
+                "email_id": "id1",
+                "recommended_label": "Sorted",
+                "score": 0.95,
+                "threshold_reached": True,
+                "calibrated": True,
+            }
+        ]
+
+        mailbox.get_label_recommendations(label="Inbox")
+
+        self.assertEqual(
+            list(score_mock.call_args.kwargs["model_dict"].keys()), ["Sorted"]
+        )
+        self.assertEqual(encode_mock.call_args.kwargs["label_lst"], ["Sorted"])
+
+    def test_get_label_recommendations_abstains_when_only_source_folder_model_exists(
+        self,
+    ):
+        db_ml = MagicMock()
+        db_ml.load_models.return_value = ({"Inbox": MagicMock()}, ["f1"])
+        mailbox = _StubMailBox(database_ml=db_ml)
+        mailbox.search_result = ["id1"]
+        mailbox.message_detail_dict = {
+            "id1": {
+                "id": "id1",
+                "threads": "t1",
+                "labels": ["Inbox"],
+                "to": [],
+                "from": None,
+                "cc": [],
+                "subject": "Hello",
+                "content": "c1",
+                "date": None,
+            }
+        }
+
+        (prediction,) = mailbox.get_label_recommendations(label="Inbox")
+
+        self.assertIsNone(prediction.recommended_folder)
+        self.assertFalse(prediction.accepted)
+
     @patch("mailsort.base.mail.score_messages_with_machine_learning_models")
     @patch("mailsort.base.mail.encode_df_for_machine_learning")
     def test_get_label_recommendations_wires_scores_into_an_accepted_prediction(

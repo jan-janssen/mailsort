@@ -117,6 +117,7 @@ class TrainCommandTest(TestCase):
             db_user_id=2,
             include_deleted=False,
             calibrate=True,
+            exclude_label_lst=None,
         )
 
     @patch("mailsort.__main__.train_machine_learning_models")
@@ -130,6 +131,7 @@ class TrainCommandTest(TestCase):
             db_user_id=1,
             include_deleted=True,
             calibrate=True,
+            exclude_label_lst=None,
         )
 
     @patch("mailsort.__main__.train_machine_learning_models")
@@ -143,6 +145,23 @@ class TrainCommandTest(TestCase):
             db_user_id=1,
             include_deleted=False,
             calibrate=False,
+            exclude_label_lst=None,
+        )
+
+    @patch("mailsort.__main__.train_machine_learning_models")
+    def test_train_ignore_folder_flag_is_forwarded(self, train_mock):
+        train_mock.return_value = 0
+
+        command_line_parser(
+            ["train", "--ignore-folder", "MailSortInbox", "--ignore-folder", "Spam"]
+        )
+
+        train_mock.assert_called_once_with(
+            connection_str="sqlite:///email.db",
+            db_user_id=1,
+            include_deleted=False,
+            calibrate=True,
+            exclude_label_lst=["MailSortInbox", "Spam"],
         )
 
     @patch("mailsort.__main__.Imap")
@@ -373,6 +392,7 @@ class EvaluateCommandTest(TestCase):
             db_user_id=1,
             test_size=0.25,
             calibrate=True,
+            exclude_label_lst=None,
         )
         printed = "\n".join(str(call.args[0]) for call in print_mock.call_args_list)
         self.assertIn("recommendation-ratio=0.90", printed)
@@ -403,6 +423,21 @@ class EvaluateCommandTest(TestCase):
             db_user_id=2,
             test_size=0.4,
             calibrate=False,
+            exclude_label_lst=None,
+        )
+
+    @patch("mailsort.__main__.score_holdout")
+    def test_evaluate_ignore_folder_flag_is_forwarded(self, score_holdout_mock):
+        score_holdout_mock.return_value = self._holdout()
+
+        command_line_parser(["evaluate", "--ignore-folder", "MailSortInbox"])
+
+        score_holdout_mock.assert_called_once_with(
+            connection_str="sqlite:///email.db",
+            db_user_id=1,
+            test_size=0.25,
+            calibrate=True,
+            exclude_label_lst=["MailSortInbox"],
         )
 
     @patch("mailsort.__main__.score_holdout")

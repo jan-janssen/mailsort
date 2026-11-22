@@ -84,6 +84,20 @@ class TrainingAndStatusIntegrationTest(TestCase):
         self.assertEqual(set(status.trained_label_lst), {"Inbox", "Receipts"})
         self.assertGreater(status.feature_count, 0)
 
+    def test_train_ignores_excluded_folder(self):
+        model_count = train_machine_learning_models(
+            connection_str=self.connection_str,
+            db_user_id=1,
+            n_estimators=5,
+            max_features=2,
+            max_workers=1,
+            exclude_label_lst=["Inbox"],
+        )
+        self.assertEqual(model_count, 1)
+
+        status = get_database_status(connection_str=self.connection_str, db_user_id=1)
+        self.assertEqual(status.trained_label_lst, ["Receipts"])
+
     def test_status_before_training_reports_no_models(self):
         status = get_database_status(connection_str=self.connection_str, db_user_id=1)
 

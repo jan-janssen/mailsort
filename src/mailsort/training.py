@@ -17,6 +17,7 @@ from mailsort.ml import (
     encode_df_for_machine_learning,
     fit_machine_learning_models,
     get_machine_learning_database,
+    remove_excluded_labels,
 )
 
 
@@ -32,6 +33,7 @@ def train_machine_learning_models(
     calibrate=True,
     min_samples_per_class_for_calibration=DEFAULT_MIN_SAMPLES_PER_CLASS_FOR_CALIBRATION,
     max_calibration_cv_folds=DEFAULT_MAX_CALIBRATION_CV_FOLDS,
+    exclude_label_lst=None,
 ):
     """
     Train one machine learning model per folder on the emails already stored in the local
@@ -53,6 +55,10 @@ def train_machine_learning_models(
         min_samples_per_class_for_calibration (int): see
             mailsort.ml.calibration.should_calibrate()
         max_calibration_cv_folds (int): see mailsort.ml.calibration.calibration_cv_folds()
+        exclude_label_lst (list[str]): folders to ignore during training, typically the folder
+            that gets sorted (e.g. ["MailSortInbox"]) - no model is trained for them and messages
+            only found in them are not used as training data. See
+            mailsort.ml.encoding.remove_excluded_labels() - default: None
 
     Returns:
         int: number of per-folder models trained
@@ -65,6 +71,7 @@ def train_machine_learning_models(
         df_all = db_email.get_all_emails(
             include_deleted=include_deleted, user_id=db_user_id
         )
+        df_all = remove_excluded_labels(df=df_all, exclude_label_lst=exclude_label_lst)
         df_all_features, df_all_labels = encode_df_for_machine_learning(
             df=df_all, feature_lst=[], label_lst=[], return_labels=True
         )

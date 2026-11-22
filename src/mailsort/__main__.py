@@ -319,6 +319,16 @@ Run `mailsort <command> --help` for the arguments of an individual command.
         "is enough data (see 'mailsort evaluate'); this only turns it off entirely.",
     )
 
+    train_parser.add_argument(
+        "--ignore-folder",
+        action="append",
+        default=None,
+        metavar="FOLDER",
+        help="Folder to ignore during training - may be given multiple times. Use this for the "
+        "folder you sort (e.g. MailSortInbox): its messages are mostly ones that were not "
+        "sorted yet, so a model for it would only keep messages from being moved.",
+    )
+
     predict_parser = subparsers.add_parser(
         "predict",
         help="Report machine learning recommendations for a folder without moving anything.",
@@ -394,6 +404,14 @@ Run `mailsort <command> --help` for the arguments of an individual command.
         help="Evaluate with calibration turned off, to compare against the default.",
     )
     evaluate_parser.add_argument(
+        "--ignore-folder",
+        action="append",
+        default=None,
+        metavar="FOLDER",
+        help="Folder to ignore, as for 'mailsort train --ignore-folder' - may be given "
+        "multiple times. Use the same value as for training to evaluate what it does.",
+    )
+    evaluate_parser.add_argument(
         "--sweep",
         action="store_true",
         help="Report coverage and precision at several recommendation-ratio values "
@@ -466,6 +484,7 @@ def _run_train(args, database, db_user_id):
         db_user_id=db_user_id,
         include_deleted=args.include_deleted,
         calibrate=not args.no_calibration,
+        exclude_label_lst=args.ignore_folder,
     )
     print(f"Trained {model_count} folder model(s) and stored them in {database!r}.")
     return _EXIT_OK
@@ -520,6 +539,7 @@ def _run_evaluate(args, database, db_user_id):
         db_user_id=db_user_id,
         test_size=args.test_size,
         calibrate=not args.no_calibration,
+        exclude_label_lst=args.ignore_folder,
     )
     if holdout.test_message_count == 0:
         print(

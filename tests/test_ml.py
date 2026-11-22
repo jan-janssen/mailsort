@@ -10,6 +10,7 @@ from sqlalchemy.orm import sessionmaker
 from sklearn.ensemble import RandomForestClassifier
 
 from mailsort.ml.encoding import (
+    remove_excluded_labels,
     encode_df_for_machine_learning,
     one_hot_encoding,
     _build_red_lst,
@@ -556,3 +557,71 @@ class TestMlModel(unittest.TestCase):
         )
         predictions = get_predictions_from_machine_learning_models(df_features, models)
         self.assertEqual(set(predictions.values()), {"Label_7891913576640435048"})
+
+
+class RemoveExcludedLabelsTest(unittest.TestCase):
+    def _df(self):
+        return pd.DataFrame(
+            {
+                "id": ["a", "b", "c", "d"],
+                "labels": [
+                    ["MailSortInbox"],
+                    ["MailSortInbox", "Receipts"],
+                    ["Receipts"],
+                    [],
+                ],
+            }
+        )
+
+    def test_no_exclusion_returns_input_unchanged(self):
+        df = self._df()
+        self.assertIs(remove_excluded_labels(df, None), df)
+        self.assertIs(remove_excluded_labels(df, []), df)
+
+    def test_removes_label_and_drops_messages_only_in_excluded_folder(self):
+        df = self._df()
+
+        result = remove_excluded_labels(df, ["MailSortInbox"])
+
+        self.assertEqual(result["id"].tolist(), ["b", "c", "d"])
+        self.assertEqual(result["labels"].tolist(), [["Receipts"], ["Receipts"], []])
+        self.assertEqual(list(result.index), [0, 1, 2])
+
+    def test_does_not_modify_the_input_dataframe(self):
+        df = self._df()
+
+        remove_excluded_labels(df, ["MailSortInbox"])
+
+        self.assertEqual(df["labels"].tolist()[0], ["MailSortInbox"])
+        self.assertEqual(len(df), 4)
+
+    def test_handles_none_labels_and_numpy_arrays(self):
+        df = pd.DataFrame(
+            {"id": ["a", "b"], "labels": [None, np.array(["X", "Inbox"])]}
+        )
+
+        result = remove_excluded_labels(df, ["Inbox"])
+
+        self.assertEqual(result["id"].tolist(), ["a", "b"])
+        self.assertEqual(result["labels"].tolist(), [[], ["X"]])
+
+    def test_encoded_labels_no_longer_contain_excluded_folder(self):
+        df = pd.DataFrame(
+            {
+                "id": ["a", "b", "c"],
+                "from": ["x@y.com", "z@y.com", "w@y.com"],
+                "to": [[], [], []],
+                "cc": [[], [], []],
+                "threads": ["t1", "t2", "t3"],
+                "labels": [["Inbox"], ["Inbox", "Receipts"], ["Receipts"]],
+            }
+        )
+
+        _, labels = encode_df_for_machine_learning(
+            df=remove_excluded_labels(df, ["Inbox"]),
+            feature_lst=[],
+            label_lst=[],
+            return_labels=True,
+        )
+
+        self.assertEqual(labels.columns.tolist(), ["labels_Receipts"])
