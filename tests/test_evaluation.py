@@ -33,10 +33,10 @@ def _scored(
 
 
 def _holdout(
-    scored_message_lst, trained_label_lst=None, calibration_status=None, **kwargs
+    scored_message_lst, trained_folder_lst=None, calibration_status=None, **kwargs
 ):
-    if trained_label_lst is None:
-        trained_label_lst = sorted(
+    if trained_folder_lst is None:
+        trained_folder_lst = sorted(
             {
                 folder
                 for scored in scored_message_lst
@@ -44,12 +44,12 @@ def _holdout(
             }
         )
     if calibration_status is None:
-        calibration_status = dict.fromkeys(trained_label_lst, False)
+        calibration_status = dict.fromkeys(trained_folder_lst, False)
     defaults = {
         "train_message_count": 100,
         "test_message_count": len(scored_message_lst),
         "excluded_test_message_count": 0,
-        "trained_label_lst": trained_label_lst,
+        "trained_folder_lst": trained_folder_lst,
         "calibration_status": calibration_status,
         "scored_message_lst": scored_message_lst,
     }
@@ -234,7 +234,7 @@ class EvaluateAtThresholdTest(TestCase):
         self.assertEqual(by_folder["Inbox"].misrouted, 1)
 
     def test_empty_holdout_produces_a_report_without_crashing(self):
-        holdout = _holdout([], trained_label_lst=["Inbox"])
+        holdout = _holdout([], trained_folder_lst=["Inbox"])
 
         report = evaluate_at_threshold(holdout, recommendation_ratio=0.9)
 
@@ -347,7 +347,7 @@ class ScoreHoldoutSplitIntegrationTest(TestCase):
 
         self.assertEqual(holdout.train_message_count, 0)
         self.assertEqual(holdout.test_message_count, 0)
-        self.assertEqual(holdout.trained_label_lst, [])
+        self.assertEqual(holdout.trained_folder_lst, [])
 
         report = evaluate_at_threshold(holdout, recommendation_ratio=0.9)
         self.assertEqual(report.test_message_count, 0)
@@ -378,7 +378,7 @@ class ScoreHoldoutSplitIntegrationTest(TestCase):
             folder="Inbox",
         )
 
-        self.assertEqual(holdout.trained_label_lst, ["Spam", "Work"])
+        self.assertEqual(holdout.trained_folder_lst, ["Spam", "Work"])
         self.assertTrue(
             all(
                 "Inbox" not in scored.true_folder_lst
@@ -408,7 +408,7 @@ class ScoreHoldoutSplitIntegrationTest(TestCase):
             df, test_size=0.3, random_state=0, n_estimators=10, max_workers=1
         )
 
-        self.assertTrue(holdout.trained_label_lst)
+        self.assertTrue(holdout.trained_folder_lst)
         self.assertFalse(any(holdout.calibration_status.values()))
 
     def test_large_dataset_calibrates(self):
@@ -461,7 +461,7 @@ class ScoreHoldoutSplitIntegrationTest(TestCase):
             df, test_size=0.5, random_state=7, n_estimators=10, max_workers=1
         )
 
-        self.assertNotIn("Rare", holdout.trained_label_lst)
+        self.assertNotIn("Rare", holdout.trained_folder_lst)
         self.assertGreaterEqual(holdout.excluded_test_message_count, 1)
         self.assertTrue(
             all(

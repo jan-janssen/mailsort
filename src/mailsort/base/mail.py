@@ -278,7 +278,7 @@ class AbstractMailBox(ABC):
             user_id=self._db_user_id,
             commit=True,
         )
-        return TrainResult(trained_label_lst=sorted(model_dict.keys()))
+        return TrainResult(trained_folder_lst=sorted(model_dict.keys()))
 
     def get_all_emails_in_database(self, include_deleted=False):
         """

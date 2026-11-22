@@ -227,7 +227,7 @@ train_machine_learning_models(
     connection_str="sqlite:///email.db", folder="MailSortInbox"
 )
 status = get_database_status(connection_str="sqlite:///email.db")
-print(status.message_count, status.trained_label_lst)
+print(status.message_count, status.trained_folder_lst)
 ```
 
 ## API for downstream packages

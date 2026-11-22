@@ -30,7 +30,7 @@ with MailSorter(
   a `SyncResult` with `new_message_count`, `updated_message_count` and `deleted_message_count`.
 - `train(folder, n_estimators=100, max_features=400, random_state=42, bootstrap=True, include_deleted=False, max_workers=None, calibrate=True, min_samples_per_class_for_calibration=20, max_calibration_cv_folds=5)`
   - (re-)train one machine learning model per folder on the local database; returns a `TrainResult` with
-  `trained_label_lst` and `model_count`. Each folder's classifier is calibrated when (and only when) it has enough
+  `trained_folder_lst` and `model_count`. Each folder's classifier is calibrated when (and only when) it has enough
   training data to do so safely - see [Evaluation and confidence](evaluation) and `mailsort.ml.calibration` below;
   pass `calibrate=False` to keep every folder's raw score instead.
 - `predict(folder, recommendation_ratio=0.9, folder_prefix="labels_")` - read-only; returns a `list[Prediction]`
@@ -130,7 +130,7 @@ imap.fit_machine_learning_model_to_database(
     include_deleted=False,
 )
 ```
-It returns a `TrainResult` with the sorted list of folders a model was trained for (`trained_label_lst`) and how
+It returns a `TrainResult` with the sorted list of folders a model was trained for (`trained_folder_lst`) and how
 many that is (`model_count`).
 
 If you only need to (re-)train from an already-synced local database and do not have an `Imap`/`AbstractMailBox`
@@ -159,7 +159,7 @@ from mailsort.api import get_database_status
 
 status = get_database_status(connection_str="sqlite:///email.db")
 print(status.message_count, status.active_message_count, status.deleted_message_count)
-print(status.trained_label_lst, status.feature_count)
+print(status.trained_folder_lst, status.feature_count)
 ```
 
 ### Filter emails using machine learning
