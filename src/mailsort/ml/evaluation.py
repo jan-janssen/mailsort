@@ -163,7 +163,7 @@ def score_holdout_split(
     min_samples_per_class_for_calibration: int = 20,
     max_calibration_cv_folds: int = 5,
     max_workers: int | None = None,
-    folder_prefix: str = "folders_",
+    folder_prefix: str = "labels_",
     folder: str | None = None,
 ) -> HoldoutScores:
     """
@@ -520,7 +520,7 @@ def evaluate_machine_learning_models(
     min_samples_per_class_for_calibration: int = 20,
     max_calibration_cv_folds: int = 5,
     max_workers: int | None = None,
-    folder_prefix: str = "folders_",
+    folder_prefix: str = "labels_",
     folder: str | None = None,
 ) -> EvaluationReport:
     """

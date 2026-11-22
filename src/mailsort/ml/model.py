@@ -56,7 +56,7 @@ def fit_machine_learning_models(
     calibrate: bool = True,
     min_samples_per_class_for_calibration: int = DEFAULT_MIN_SAMPLES_PER_CLASS_FOR_CALIBRATION,
     max_calibration_cv_folds: int = DEFAULT_MAX_CALIBRATION_CV_FOLDS,
-    folder_prefix: str = "folders_",
+    folder_prefix: str = "labels_",
 ) -> dict[str, RandomForestClassifier]:
     """
     Train machine learning models, one per folder.

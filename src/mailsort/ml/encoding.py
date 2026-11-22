@@ -9,7 +9,7 @@ def encode_df_for_machine_learning(
     feature_lst: list[str] | np.ndarray | None = None,
     folder_lst: list[str] | np.ndarray | None = None,
     return_folders: bool = False,
-    folder_prefix: str = "folders_",
+    folder_prefix: str = "labels_",
 ) -> pandas.DataFrame | tuple[pandas.DataFrame, pandas.DataFrame]:
     """
     Encode a given dataframe for machine learning. Either based on a list of existing features and folders or by

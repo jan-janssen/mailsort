@@ -168,7 +168,7 @@ Assign new emails in the folder `"MailSortInbox"` to the folder that best matche
 imap.filter_messages_from_server(
     folder="MailSortInbox",
     recommendation_ratio=0.9,
-    folder_prefix="folders_",
+    folder_prefix="labels_",
 )
 ```
 It checks the server for new emails in the given folder, reloads the machine learning models from the local
@@ -213,7 +213,7 @@ passthrough to it - so both already return the same `list[Prediction]`:
 predictions = imap.get_folder_recommendations(
     folder="MailSortInbox",
     recommendation_ratio=0.9,
-    folder_prefix="folders_",
+    folder_prefix="labels_",
 )
 ```
 Each `Prediction` is a frozen, JSON-serializable dataclass - a first-class, side-effect-free representation of one
