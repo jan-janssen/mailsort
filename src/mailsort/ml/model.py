@@ -47,7 +47,7 @@ def train_random_forest(
 
 def fit_machine_learning_models(
     df_all_features: pandas.DataFrame,
-    df_all_labels: pandas.DataFrame,
+    df_all_folders: pandas.DataFrame,
     n_estimators: int = 100,
     max_features: int = 400,
     random_state: int = 42,
@@ -62,7 +62,7 @@ def fit_machine_learning_models(
 
     Args:
         df_all_features (pandas.DataFrame): binary encoded features stored in a pandas dataframe
-        df_all_labels (pandas.DataFrame): binary encoded labels stored in a pandas dataframe
+        df_all_folders (pandas.DataFrame): binary encoded labels stored in a pandas dataframe
         n_estimators (int): number of estimators of the machine learning models
         max_features (int): maximum number of features of the machine learning models
         random_state (int): random state for initialization of the machine learning models
@@ -88,13 +88,13 @@ def fit_machine_learning_models(
                 bootstrap=bootstrap,
                 max_features=max_features,
                 X=df_training,
-                y=df_all_labels[to_learn],
+                y=df_all_folders[to_learn],
                 calibrate=calibrate,
                 min_samples_per_class_for_calibration=min_samples_per_class_for_calibration,
                 max_calibration_cv_folds=max_calibration_cv_folds,
             )
             for to_learn in tqdm(
-                iterable=df_all_labels.columns.tolist(),
+                iterable=df_all_folders.columns.tolist(),
                 desc="Train machinelearning models",
             )
         }
@@ -108,12 +108,12 @@ def fit_machine_learning_models(
                     bootstrap=bootstrap,
                     max_features=max_features,
                     X=df_training,
-                    y=df_all_labels[to_learn],
+                    y=df_all_folders[to_learn],
                     calibrate=calibrate,
                     min_samples_per_class_for_calibration=min_samples_per_class_for_calibration,
                     max_calibration_cv_folds=max_calibration_cv_folds,
                 )
-                for to_learn in df_all_labels.columns.tolist()
+                for to_learn in df_all_folders.columns.tolist()
             }
             return {
                 k: v.result()

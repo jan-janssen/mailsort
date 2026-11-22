@@ -251,7 +251,7 @@ class AbstractMailBox(ABC):
         """
         df_all = self.get_all_emails_in_database(include_deleted=include_deleted)
         df_all = remove_folder_from_labels(df=df_all, folder=folder)
-        df_all_features, df_all_labels = encode_df_for_machine_learning(
+        df_all_features, df_all_folders = encode_df_for_machine_learning(
             df=df_all, feature_lst=[], label_lst=[], return_labels=True
         )
         df_all_features = df_all_features.loc[
@@ -262,7 +262,7 @@ class AbstractMailBox(ABC):
         )
         model_dict = fit_machine_learning_models(
             df_all_features=df_all_features,
-            df_all_labels=df_all_labels,
+            df_all_folders=df_all_folders,
             n_estimators=n_estimators,
             max_features=max_features,
             random_state=random_state,

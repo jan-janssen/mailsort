@@ -4,7 +4,7 @@ from unittest import TestCase
 from unittest.mock import MagicMock
 
 import pandas
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import sessionmaker
 
 from mailsort.base.database import EmailFrom, get_email_database
@@ -54,7 +54,7 @@ class DatabaseTest(TestCase):
 
     def test_get_emails_by_label(self):
         self.assertEqual(
-            self.database.get_emails_by_label(label_id="Label_123").id.values.tolist(),
+            self.database.get_emails_by_folder(folder_id="Label_123").id.values.tolist(),
             ["myid123"],
         )
 
@@ -121,25 +121,25 @@ class DatabaseTest(TestCase):
             message_id_lst=["myid123"], message_meta_lst=[["important", "Label_456"]]
         )
         self.assertEqual(
-            self.database.get_emails_by_label(label_id="Label_123").id.values.tolist(),
+            self.database.get_emails_by_folder(folder_id="Label_123").id.values.tolist(),
             [],
         )
         self.assertEqual(
-            self.database.get_emails_by_label(label_id="Label_456").id.values.tolist(),
+            self.database.get_emails_by_folder(folder_id="Label_456").id.values.tolist(),
             ["myid123"],
         )
         self.database.update_labels(
             message_id_lst=["myid123"], message_meta_lst=[["important"]]
         )
         self.assertEqual(
-            self.database.get_emails_by_label(label_id="Label_456").id.values.tolist(),
+            self.database.get_emails_by_folder(folder_id="Label_456").id.values.tolist(),
             [],
         )
         self.database.update_labels(
             message_id_lst=["myid123"], message_meta_lst=[["important"]]
         )
         self.assertEqual(
-            self.database.get_emails_by_label(label_id="Label_456").id.values.tolist(),
+            self.database.get_emails_by_folder(folder_id="Label_456").id.values.tolist(),
             [],
         )
 
@@ -232,3 +232,65 @@ class DatabaseTest(TestCase):
         self.database.session.query(EmailFrom).filter(EmailFrom.id == 1).delete()
         self.database.session.commit()
         self.assertIsNone(self.database.get_all_emails().iloc[0]["from"])
+
+
+class LegacyEmailLabelsMigrationTest(TestCase):
+    def _create_legacy_database(self, engine):
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "CREATE TABLE email_content (id INTEGER PRIMARY KEY, "
+                    "email_id VARCHAR(255) UNIQUE, subject TEXT, content TEXT, "
+                    "date DATETIME, user_id INTEGER, deleted BOOLEAN)"
+                )
+            )
+            connection.execute(
+                text(
+                    "CREATE TABLE email_labels (id INTEGER PRIMARY KEY, "
+                    "email_id VARCHAR(255), label_id VARCHAR(255), user_id INTEGER)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO email_labels (email_id, label_id, user_id) "
+                    "VALUES ('m1', 'Receipts', 1)"
+                )
+            )
+
+    def test_existing_email_labels_table_is_renamed_and_keeps_its_data(self):
+        engine = create_engine("sqlite:///:memory:")
+        self._create_legacy_database(engine)
+
+        get_email_database(engine=engine, session=sessionmaker(bind=engine)())
+
+        self.assertNotIn("email_labels", inspect(engine).get_table_names())
+        column_lst = [c["name"] for c in inspect(engine).get_columns("email_folders")]
+        self.assertIn("folder_id", column_lst)
+        self.assertNotIn("label_id", column_lst)
+        with engine.connect() as connection:
+            rows = connection.execute(
+                text("SELECT email_id, folder_id FROM email_folders")
+            ).fetchall()
+        self.assertEqual([tuple(row) for row in rows], [("m1", "Receipts")])
+
+    def test_migration_is_a_no_op_for_new_and_already_migrated_databases(self):
+        engine = create_engine("sqlite:///:memory:")
+
+        get_email_database(engine=engine, session=sessionmaker(bind=engine)())
+        get_email_database(engine=engine, session=sessionmaker(bind=engine)())
+
+        table_lst = inspect(engine).get_table_names()
+        self.assertIn("email_folders", table_lst)
+        self.assertNotIn("email_labels", table_lst)
+
+    def test_migration_does_not_touch_a_database_that_has_both_tables(self):
+        engine = create_engine("sqlite:///:memory:")
+        self._create_legacy_database(engine)
+        with engine.begin() as connection:
+            connection.execute(
+                text("CREATE TABLE email_folders (id INTEGER PRIMARY KEY)")
+            )
+
+        get_email_database(engine=engine, session=sessionmaker(bind=engine)())
+
+        self.assertIn("email_labels", inspect(engine).get_table_names())

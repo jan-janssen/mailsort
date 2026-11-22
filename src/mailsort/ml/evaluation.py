@@ -228,7 +228,7 @@ def score_holdout_split(
     )
     model_dict = fit_machine_learning_models(
         df_all_features=df_train_features,
-        df_all_labels=df_train_labels,
+        df_all_folders=df_train_labels,
         n_estimators=n_estimators,
         max_features=max_features,
         random_state=random_state,

@@ -12,7 +12,9 @@ from sqlalchemy import (
     String,
     Text,
     create_engine,
+    inspect,
     make_url,
+    text,
 )
 from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.orm import Session, declarative_base
@@ -81,12 +83,12 @@ class Threads(Base):
     user_id = Column(Integer)
 
 
-class Labels(Base):
-    __tablename__ = "email_labels"
+class Folders(Base):
+    __tablename__ = "email_folders"
     __table_args__ = MYSQL_TABLE_ARGS
     id = Column(Integer, primary_key=True)
     email_id = Column(String(SHORT_STRING_LENGTH), ForeignKey("email_content.email_id"))
-    label_id = Column(String(SHORT_STRING_LENGTH))
+    folder_id = Column(String(SHORT_STRING_LENGTH))
     user_id = Column(Integer)
 
 
@@ -198,9 +200,9 @@ class DatabaseInterface(DatabaseTemplate):
         ):
             message_label_stored = [
                 m
-                for (m,) in self._session.query(Labels.label_id)
-                .filter(Labels.user_id == user_id)
-                .filter(Labels.email_id == message_id)
+                for (m,) in self._session.query(Folders.folder_id)
+                .filter(Folders.user_id == user_id)
+                .filter(Folders.email_id == message_id)
                 .all()
             ]
             if message_label_stored == message_labels:
@@ -217,22 +219,22 @@ class DatabaseInterface(DatabaseTemplate):
                 if len(labels_to_add) > 0:
                     self._session.add_all(
                         [
-                            Labels(
+                            Folders(
                                 email_id=message_id,
-                                label_id=label_id,
+                                folder_id=folder_id,
                                 user_id=user_id,
                             )
-                            for label_id in labels_to_add
+                            for folder_id in labels_to_add
                         ]
                     )
                 if len(labels_to_remove) > 0:
                     _ = [
-                        self._session.query(Labels)
-                        .filter(Labels.user_id == user_id)
-                        .filter(Labels.email_id == message_id)
-                        .filter(Labels.label_id == label_id)
+                        self._session.query(Folders)
+                        .filter(Folders.user_id == user_id)
+                        .filter(Folders.email_id == message_id)
+                        .filter(Folders.folder_id == folder_id)
                         .delete()
-                        for label_id in labels_to_remove
+                        for folder_id in labels_to_remove
                     ]
                 self._session.commit()
 
@@ -270,20 +272,20 @@ class DatabaseInterface(DatabaseTemplate):
             desc="Create dataframe from database",
         )
 
-    def get_emails_by_label(
-        self, label_id: str, include_deleted: bool = False, user_id: int = 1
+    def get_emails_by_folder(
+        self, folder_id: str, include_deleted: bool = False, user_id: int = 1
     ) -> pandas.DataFrame:
         return self.get_email_collection(
             email_id_lst=[
                 email_id
-                for (email_id,) in self._session.query(Labels.email_id)
-                .filter(Labels.user_id == user_id)
-                .filter(Labels.label_id == label_id)
+                for (email_id,) in self._session.query(Folders.email_id)
+                .filter(Folders.user_id == user_id)
+                .filter(Folders.folder_id == folder_id)
                 .all()
             ],
             include_deleted=include_deleted,
             user_id=user_id,
-            desc="Create dataframe from emails by label",
+            desc="Create dataframe from emails by folder",
         )
 
     def get_emails_by_from(
@@ -417,9 +419,9 @@ class DatabaseInterface(DatabaseTemplate):
     def _commit_label_table(self, df: pandas.DataFrame, user_id: int = 1) -> None:
         label_lst = []
         for email_id, lid_lst in zip(df["id"], df["labels"], strict=False):
-            for label_id in lid_lst:
+            for folder_id in lid_lst:
                 label_lst.append(
-                    Labels(email_id=email_id, label_id=label_id, user_id=user_id)
+                    Folders(email_id=email_id, folder_id=folder_id, user_id=user_id)
                 )
         self._session.add_all(label_lst)
         self._session.commit()
@@ -504,10 +506,10 @@ class DatabaseInterface(DatabaseTemplate):
                 .all()
             ]
             label_lst = [
-                labels.label_id
-                for labels in self._session.query(Labels)
-                .filter(Labels.user_id == user_id)
-                .filter(Labels.email_id == email_id)
+                labels.folder_id
+                for labels in self._session.query(Folders)
+                .filter(Folders.user_id == user_id)
+                .filter(Folders.email_id == email_id)
                 .all()
             ]
             thread_lst = [
@@ -544,6 +546,23 @@ class DatabaseInterface(DatabaseTemplate):
         )
 
 
+def _migrate_email_labels_to_email_folders(engine: Engine) -> None:
+    """
+    Databases created before the Labels table was renamed store the folders of each email in
+    "email_labels.label_id". Rename that table and column in place, so existing databases keep
+    their data - otherwise create_all() would add an empty "email_folders" table next to it.
+    """
+    table_lst = inspect(engine).get_table_names()
+    if "email_labels" not in table_lst or "email_folders" in table_lst:
+        return
+    with engine.begin() as connection:
+        connection.execute(text("ALTER TABLE email_labels RENAME TO email_folders"))
+        connection.execute(
+            text("ALTER TABLE email_folders RENAME COLUMN label_id TO folder_id")
+        )
+
+
 def get_email_database(engine: Engine, session: Session) -> DatabaseInterface:
+    _migrate_email_labels_to_email_folders(engine)
     Base.metadata.create_all(engine)
     return DatabaseInterface(session=session)

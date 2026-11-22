@@ -19,7 +19,7 @@ from mailsort.training import train_machine_learning_models
 
 _DEFAULT_DATABASE = "sqlite:///email.db"
 _DEFAULT_RECOMMENDATION_RATIO = 0.9
-_DEFAULT_LABEL_PREFIX = "labels_"
+_DEFAULT_FOLDER_PREFIX = "labels_"
 
 _EXIT_OK = 0
 _EXIT_RUNTIME_ERROR = 1
@@ -74,7 +74,7 @@ def _format_status_table(status):
     """
     Render a mailsort.status.DatabaseStatus as human-readable text for the command line.
     """
-    trained_labels = (
+    trained_folders = (
         ", ".join(status.trained_label_lst) if status.trained_label_lst else "none"
     )
     return "\n".join(
@@ -83,7 +83,7 @@ def _format_status_table(status):
             f"Database user id:       {status.db_user_id}",
             f"Known messages:         {status.message_count} total "
             f"({status.active_message_count} active, {status.deleted_message_count} deleted)",
-            f"Trained folder models:  {len(status.trained_label_lst)} ({trained_labels})",
+            f"Trained folder models:  {len(status.trained_label_lst)} ({trained_folders})",
             f"Machine learning features stored: {status.feature_count}",
         ]
     )
@@ -228,9 +228,9 @@ def _add_recommendation_arguments(parser):
     )
     parser.add_argument(
         "--folder-prefix",
-        default=_DEFAULT_LABEL_PREFIX,
+        default=_DEFAULT_FOLDER_PREFIX,
         help="Prefix used to recognise label columns during feature encoding - only needs "
-        f"to change if you customised this in the Python API - default: {_DEFAULT_LABEL_PREFIX!r} .",
+        f"to change if you customised this in the Python API - default: {_DEFAULT_FOLDER_PREFIX!r} .",
     )
 
 
